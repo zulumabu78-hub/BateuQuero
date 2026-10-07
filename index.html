@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0b0b0f" />
+  <meta name="description" content="BateuQuero — achados que dão vontade de levar." />
+  <title>BateuQuero — viu, bateu, quero.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="grain"></div>
+
+  <header class="topbar">
+    <a class="brand" href="#top" aria-label="BateuQuero, início">
+      <span class="brand-mark">BQ</span>
+      <span class="brand-copy">Bateu<span>Quero</span></span>
+    </a>
+
+    <nav class="desktop-nav" aria-label="Navegação principal">
+      <a href="#destaque">Destaque</a>
+      <a href="#achados">Achados</a>
+      <a href="#como-funciona">Como funciona</a>
+    </nav>
+
+    <button class="icon-btn" id="favTop" aria-label="Ver favoritos">
+      <span>♡</span><b id="favCount">0</b>
+    </button>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow"><i></i> curadoria de coisas que dão vontade</div>
+        <h1>Você não veio comprar.<br><span>Mas olha isso.</span></h1>
+        <p>Tecnologia, casa, beleza e ferramentas escolhidas para dar aquela sensação de “como eu não tinha visto isso antes?”.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#achados">Quero ver os achados <span>→</span></a>
+          <button class="btn btn-ghost" id="surpriseBtn">Me surpreende ✦</button>
+        </div>
+        <div class="trustline">
+          <span>✓ sem cadastro</span>
+          <span>✓ links reais</span>
+          <span>✓ compra no Mercado Livre</span>
+        </div>
+      </div>
+
+      <div class="hero-stage" aria-hidden="true">
+        <div class="orbit orbit-a"></div>
+        <div class="orbit orbit-b"></div>
+        <div class="floating-card fc-1"><span>🔥</span><b>bateu curiosidade?</b><small>abre e confere</small></div>
+        <div class="floating-card fc-2"><span>⚡</span><b>garimpo rápido</b><small>sem caçar por horas</small></div>
+        <div class="floating-card fc-3"><span>👀</span><b>você viu</b><small>agora tenta esquecer</small></div>
+        <div class="hero-object">
+          <div class="object-glow"></div>
+          <div class="object-core">?</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="search-zone">
+      <div class="searchbox">
+        <span>⌕</span>
+        <input id="searchInput" type="search" placeholder="Busque pelos achados de hoje..." autocomplete="off" />
+        <kbd>/</kbd>
+      </div>
+      <div class="chips" id="categoryChips"></div>
+    </section>
+
+    <section class="section" id="destaque">
+      <div class="section-head">
+        <div>
+          <span class="section-kicker">🔥 PRA ABRIR PRIMEIRO</span>
+          <h2>Escolha do dia</h2>
+        </div>
+        <button class="text-btn" data-filter="Todos">ver todos →</button>
+      </div>
+      <div class="featured" id="featuredProduct"></div>
+    </section>
+
+    <section class="ticker-wrap" aria-label="Destaques rápidos">
+      <div class="ticker">
+        <span>5 ACHADOS REAIS DE HOJE</span><i>✦</i>
+        <span>VOCÊ CONFERE O PREÇO NO MERCADO LIVRE</span><i>✦</i>
+        <span>SEM CONTADOR FALSO</span><i>✦</i>
+        <span>SEM PREÇO INVENTADO</span><i>✦</i>
+        <span>5 ACHADOS REAIS DE HOJE</span><i>✦</i>
+        <span>VOCÊ COMPRA NO MARKETPLACE</span><i>✦</i>
+      </div>
+    </section>
+
+    <section class="section" id="achados">
+      <div class="section-head">
+        <div>
+          <span class="section-kicker">✦ GARIMPO DO DIA</span>
+          <h2>Coisas que dão vontade de clicar</h2>
+        </div>
+        <div class="result-meta"><span id="resultCount">0</span> achados</div>
+      </div>
+      <div class="product-grid" id="productGrid"></div>
+      <div class="empty-state" id="emptyState" hidden>
+        <div>¯\_(ツ)_/¯</div>
+        <h3>Nada por aqui ainda.</h3>
+        <p>Tenta outra busca.</p>
+      </div>
+    </section>
+
+    <section class="section mini-section" id="como-funciona">
+      <div class="mini-banner">
+        <div>
+          <span class="section-kicker">🔒 SEM PEGADINHA</span>
+          <h2>Você decide no Mercado Livre</h2>
+          <p>O BateuQuero faz a curadoria. Preço, frete, avaliações, vendedor e disponibilidade são conferidos na página oficial antes da compra.</p>
+        </div>
+        <a class="btn btn-light" href="#achados">Ver os achados →</a>
+      </div>
+    </section>
+
+    <section class="manifesto section">
+      <div class="manifesto-card">
+        <span class="manifesto-number">01</span>
+        <h3>Viu.</h3>
+        <p>Algo chama sua atenção em poucos segundos.</p>
+      </div>
+      <div class="manifesto-card">
+        <span class="manifesto-number">02</span>
+        <h3>Abriu.</h3>
+        <p>Você confere o anúncio e as condições reais no Mercado Livre.</p>
+      </div>
+      <div class="manifesto-card accent">
+        <span class="manifesto-number">03</span>
+        <h3>BateuQuero.</h3>
+        <p>Se fizer sentido, você compra direto no marketplace.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-brand">
+      <div class="brand-mark">BQ</div>
+      <div>
+        <strong>BateuQuero</strong>
+        <p>Viu. Curtiu. Bateu quero.</p>
+      </div>
+    </div>
+    <p class="affiliate-note">Alguns links deste site podem gerar uma comissão para manter o projeto de pé, sem custo adicional para você.</p>
+    <p class="fineprint">Preços, condições, frete e disponibilidade podem mudar. Confira as informações finais no Mercado Livre antes de comprar.</p>
+  </footer>
+
+  <nav class="mobile-nav" aria-label="Navegação mobile">
+    <a href="#top"><span>⌂</span><small>Início</small></a>
+    <a href="#destaque"><span>🔥</span><small>Destaque</small></a>
+    <button id="mobileSearchBtn"><span>⌕</span><small>Buscar</small></button>
+    <button id="favMobile"><span>♡</span><small>Salvos</small></button>
+  </nav>
+
+  <dialog id="productModal" class="modal">
+    <button class="modal-close" id="modalClose" aria-label="Fechar">×</button>
+    <div id="modalContent"></div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
