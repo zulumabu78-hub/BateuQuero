@@ -1,11 +1,18 @@
-# BateuQuero
+# BateuQuero — V4
 
-Site oficial do **BateuQuero** — curadoria de achados com links de afiliado do Mercado Livre.
+Vitrine de achados com 10 produtos reais e links de afiliado do Mercado Livre.
 
-- 5 produtos reais
-- links de afiliado ativos
-- layout responsivo/mobile-first
-- busca, categorias e favoritos
-- aviso transparente de comissão
+## O que mudou na V4
+- redesign completo da home
+- cards com fundos gráficos e molduras visuais
+- 10 produtos reais
+- busca, filtros e ordenação
+- favoritos em localStorage
+- seção de descoberta aleatória
+- categorias visuais
+- textos de venda reescritos
+- aviso de transparência sobre comissão
+- preços marcados como capturados em 06/10/2026, sujeitos a mudança
 
-> Preços, frete e disponibilidade podem mudar. Confira as condições atuais no Mercado Livre antes de comprar.
+## Publicação
+Este repositório está conectado à Vercel. Alterações na branch `main` disparam novo deploy automaticamente.
