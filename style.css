@@ -177,7 +177,7 @@ button{color:inherit}
   box-shadow:0 28px 90px rgba(0,0,0,.45);transform:rotate(-2deg);
   overflow:hidden;border:1px solid rgba(255,255,255,.45);
 }
-.featured-shot img{width:100%;height:100%;object-fit:contain;padding:7%;display:block}
+.featured-shot img{width:100%;height:100%;object-fit:cover;object-position:center;padding:0;display:block;transform:scale(1.08);transition:transform .35s ease,filter .35s ease;filter:saturate(1.04) contrast(1.02)}
 .featured-deco{
   position:absolute;right:5%;bottom:8%;z-index:3;
   width:92px;height:92px;border-radius:50%;border:1px solid rgba(255,255,255,.16);
@@ -248,12 +248,13 @@ button{color:inherit}
   width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.13);display:grid;place-items:center;color:var(--acid);
 }
 .product-shot{
-  position:absolute;z-index:2;inset:14% 8% 11%;overflow:hidden;
-  border-radius:24px;background:#fff;box-shadow:0 20px 54px rgba(0,0,0,.34);
+  position:absolute;z-index:2;inset:10% 4% 8%;overflow:hidden;
+  border-radius:22px;background:#f4f5f7;box-shadow:0 20px 54px rgba(0,0,0,.34);
   transition:.3s ease;
 }
-.product-shot img{width:100%;height:100%;object-fit:contain;padding:7%;display:block}
-.product-card:hover .product-shot{transform:scale(1.025) rotate(-1deg)}
+.product-shot img{width:100%;height:100%;object-fit:cover;object-position:center;padding:0;display:block;transform:scale(1.12);transition:transform .35s ease,filter .35s ease;filter:saturate(1.04) contrast(1.025)}
+.product-card:hover .product-shot{transform:scale(1.018) rotate(-.5deg)}
+.product-card:hover .product-shot img{transform:scale(1.17)}
 .product-body{padding:22px}
 .product-category{font-size:.67rem;font-weight:800;letter-spacing:.1em;color:#7f8898;text-transform:uppercase}
 .product-title{font-family:"Space Grotesk";font-size:1.22rem;line-height:1.12;letter-spacing:-.035em;margin:8px 0 0}
@@ -350,7 +351,7 @@ footer{
 }
 .modal-media:before{content:"";position:absolute;inset:0;opacity:.2;background-image:linear-gradient(rgba(255,255,255,.09) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.09) 1px,transparent 1px);background-size:30px 30px}
 .modal-shot{position:absolute;inset:12%;z-index:2;border-radius:28px;background:#fff;overflow:hidden;box-shadow:0 22px 70px rgba(0,0,0,.35)}
-.modal-shot img{width:100%;height:100%;object-fit:contain;padding:7%}
+.modal-shot img{width:100%;height:100%;object-fit:cover;object-position:center;padding:0;transform:scale(1.08);filter:saturate(1.03) contrast(1.02)}
 .modal-info{padding:52px 42px;display:flex;flex-direction:column;justify-content:center}
 .modal-info h3{font-family:"Space Grotesk";font-size:2.7rem;letter-spacing:-.05em;line-height:1;margin:12px 0}
 .modal-info .hook{color:#aab1be;line-height:1.7}
@@ -417,7 +418,7 @@ footer{
   .product-grid{grid-template-columns:1fr;gap:15px}
   .product-card{border-radius:25px}
   .product-stage{aspect-ratio:1.12/1}
-  .product-shot{inset:13% 7% 10%}
+  .product-shot{inset:10% 4% 8%}
   .product-title{font-size:1.35rem}
   .product-short{min-height:auto}
   .card-actions{grid-template-columns:1fr 48px;display:grid}
