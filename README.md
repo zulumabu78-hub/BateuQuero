@@ -1,11 +1,11 @@
 # BateuQuero — V4
 
-Vitrine de achados com 10 produtos reais e links de afiliado do Mercado Livre.
+Vitrine de achados com 20 produtos reais e links de afiliado do Mercado Livre.
 
 ## O que mudou na V4
 - redesign completo da home
 - cards com fundos gráficos e molduras visuais
-- 10 produtos reais
+- 20 produtos reais
 - busca, filtros e ordenação
 - favoritos em localStorage
 - seção de descoberta aleatória
