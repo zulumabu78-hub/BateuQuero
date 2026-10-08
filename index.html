@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
   <div class="noise" aria-hidden="true"></div>
@@ -22,6 +22,7 @@
     </a>
     <nav class="desktop-nav">
       <a href="#radar">Radar</a>
+      <a href="#para-elas">Para elas</a>
       <a href="#achados">Achados</a>
       <a href="#categorias">Categorias</a>
       <a href="#como-funciona">Como funciona</a>
@@ -86,6 +87,20 @@
       <div id="featuredProduct"></div>
     </section>
 
+
+    <section class="section-shell beauty-edit" id="para-elas">
+      <div class="beauty-edit-card">
+        <div class="beauty-edit-head">
+          <div>
+            <span class="section-kicker">BQ BEAUTY • SELEÇÃO FEMININA</span>
+            <h2>Achados para elas.</h2>
+          </div>
+          <p>Skincare, cabelo, maquiagem, corpo, perfume e moda em uma faixa feita para descobrir rápido sem perder o resto do catálogo.</p>
+        </div>
+        <div class="beauty-rail" id="beautyRail" aria-label="Seleção feminina"></div>
+      </div>
+    </section>
+
     <section class="ticker" aria-label="Informações rápidas">
       <div class="ticker-track">
         <span>30 ACHADOS REAIS</span><i>✦</i>
@@ -111,15 +126,27 @@
           </div>
           <select id="sortSelect" aria-label="Ordenar produtos">
             <option value="featured">Mais interessantes</option>
+            <option value="new">Mais novos</option>
             <option value="discount">Maior desconto</option>
             <option value="low">Menor preço</option>
             <option value="high">Maior preço</option>
           </select>
+          <select id="priceSelect" aria-label="Filtrar por preço">
+            <option value="all">Qualquer preço</option>
+            <option value="50">Até R$ 50</option>
+            <option value="100">Até R$ 100</option>
+            <option value="200">Até R$ 200</option>
+            <option value="200plus">Acima de R$ 200</option>
+          </select>
         </div>
       </div>
 
+      <div class="filter-zone">
+        <div class="quick-filters" id="quickFilters" aria-label="Filtros rápidos"></div>
+        <button class="clear-filters" id="clearFiltersBtn">Limpar filtros</button>
+      </div>
       <div class="chips" id="categoryChips"></div>
-      <div class="result-line"><span id="resultCount">10</span> achados encontrados</div>
+      <div class="result-line"><strong id="resultCount">30</strong> <span id="resultLabel">achados encontrados</span></div>
       <div class="product-grid" id="productGrid"></div>
       <div class="empty-state" id="emptyState" hidden>
         <strong>¯\_(ツ)_/¯</strong>
@@ -172,7 +199,7 @@
       <div><strong>BateuQuero</strong><small>Viu. Curtiu. BateuQuero.</small></div>
     </div>
     <p class="affiliate-note">Alguns links deste site podem gerar uma comissão para manter o projeto de pé, sem custo adicional para você.</p>
-    <p class="fineprint">Preços, descontos, condições, frete e disponibilidade podem mudar. Os valores mostrados foram vistos nos anúncios enviados em 06/10/2026. Confira as informações atuais no Mercado Livre antes de comprar.</p>
+    <p class="fineprint">Preços, descontos, condições, frete e disponibilidade podem mudar. Os valores mostrados foram vistos nos anúncios enviados entre 06 e 08/10/2026. Confira as informações atuais no Mercado Livre antes de comprar.</p>
   </footer>
 
   <nav class="mobile-nav" aria-label="Navegação mobile">
@@ -188,6 +215,7 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="app.js"></script>
+  <script src="products.js?v=7"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>
