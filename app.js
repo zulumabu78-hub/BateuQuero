@@ -18,6 +18,8 @@ const modalContent = $("#modalContent");
 const toast = $("#toast");
 
 const money = (value) => new Intl.NumberFormat("pt-BR", {style:"currency",currency:"BRL"}).format(value);
+const hasPrice = (p) => Number.isFinite(p.price) && p.price > 0;
+const priceLabel = (p) => hasPrice(p) ? money(p.price) : "Ver preço atual";
 const styleVars = (p) => `--a:${p.theme[0]};--b:${p.theme[1]}`;
 const normalize = (s="") => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 const beautyCategories = new Set(["Skincare","Cabelo","Corpo","Maquiagem","Perfume","Acessórios","Beleza","Moda"]);
@@ -28,7 +30,8 @@ function categories(){
   return ["Todos", ...new Set(products.map(p => p.category))];
 }
 
-function isNew(p){ return p.seenAt === "08/10/2026"; }
+const latestSeenAt = products.map(p=>p.seenAt).filter(Boolean).sort((a,b)=>{const ka=a.split("/").reverse().join("-");const kb=b.split("/").reverse().join("-");return kb.localeCompare(ka);})[0];
+function isNew(p){ return p.seenAt === latestSeenAt; }
 function productShareUrl(p){ return `${location.origin}${location.pathname}?produto=${encodeURIComponent(p.id)}`; }
 
 function renderHeroPreview(){
@@ -46,11 +49,18 @@ function renderHeroPreview(){
 }
 
 function priceHTML(p){
+  if(!hasPrice(p)){
+    return `
+      <div class="price-stack no-price">
+        <div class="price-row"><strong>Ver preço atual</strong></div>
+        <span class="installments">${p.installments || "Confira o valor no anúncio"}</span>
+      </div>`;
+  }
   return `
     <div class="price-stack">
       ${p.oldPrice ? `<span class="old-price">${money(p.oldPrice)}</span>` : ""}
       <div class="price-row">
-        <strong>${money(p.price)}</strong>
+        <strong>${priceLabel(p)}</strong>
         ${p.discount ? `<span class="discount-pill">${p.discount}% OFF</span>` : ""}
       </div>
       <span class="installments">${p.installments}</span>
@@ -58,7 +68,7 @@ function priceHTML(p){
 }
 
 function freshnessStamp(p){
-  return `<span class="price-stamp">Preço visto em ${p.seenAt || "06/10/2026"}</span>`;
+  return `<span class="price-stamp">${hasPrice(p) ? "Preço visto" : "Adicionado"} em ${p.seenAt || "06/10/2026"}</span>`;
 }
 
 function renderFeatured(){
@@ -117,14 +127,16 @@ function cardHTML(p, index){
 
 function matchesQuick(p){
   if(quickMode === "new") return isNew(p);
-  if(quickMode === "under50") return p.price <= 50;
+  if(quickMode === "under50") return hasPrice(p) && p.price <= 50;
   if(quickMode === "deal50") return (p.discount||0) >= 50;
-  if(quickMode === "premium") return p.price >= 250;
+  if(quickMode === "premium") return hasPrice(p) && p.price >= 250;
   if(quickMode === "beauty") return beautyCategories.has(p.category);
   return true;
 }
 
 function matchesPrice(p){
+  if(priceMode === "all") return true;
+  if(!hasPrice(p)) return false;
   if(priceMode === "50") return p.price <= 50;
   if(priceMode === "100") return p.price <= 100;
   if(priceMode === "200") return p.price <= 200;
@@ -142,8 +154,8 @@ function filteredProducts(){
     return categoryOk && searchOk && matchesQuick(p) && matchesPrice(p) && favOk;
   });
   if(sortMode === "discount") result.sort((a,b)=>(b.discount||0)-(a.discount||0));
-  if(sortMode === "low") result.sort((a,b)=>a.price-b.price);
-  if(sortMode === "high") result.sort((a,b)=>b.price-a.price);
+  if(sortMode === "low") result.sort((a,b)=>(hasPrice(a)?a.price:Infinity)-(hasPrice(b)?b.price:Infinity));
+  if(sortMode === "high") result.sort((a,b)=>(hasPrice(b)?b.price:-Infinity)-(hasPrice(a)?a.price:-Infinity));
   if(sortMode === "new") result.sort((a,b)=>(b.seenAt||"").localeCompare(a.seenAt||""));
   if(sortMode === "featured") result.sort((a,b)=>Number(!!b.featured)-Number(!!a.featured) || (b.discount||0)-(a.discount||0));
   return result;
@@ -173,7 +185,7 @@ function renderBeautyRail(){
   $("#beautyRail").innerHTML = list.map(p => `
     <button class="beauty-mini" data-open="${p.id}" style="${styleVars(p)}">
       <span class="beauty-mini-media ${imageMode(p)}"><img src="${p.image}" alt="" loading="lazy" decoding="async"></span>
-      <span class="beauty-mini-copy"><small>${p.category}</small><strong>${p.title}</strong><b>${money(p.price)}</b></span>
+      <span class="beauty-mini-copy"><small>${p.category}</small><strong>${p.title}</strong><b>${priceLabel(p)}</b></span>
     </button>`).join("");
   bindActions();
 }
@@ -205,7 +217,7 @@ function relatedHTML(p){
   return `<div class="related-block"><span class="section-kicker">VOCÊ TAMBÉM PODE GOSTAR</span><div class="related-grid">${related.map(r => `
     <button class="related-item" data-open="${r.id}" style="${styleVars(r)}">
       <span class="related-media ${imageMode(r)}"><img src="${r.image}" alt="" loading="lazy"></span>
-      <span><small>${r.category}</small><strong>${r.title}</strong><b>${money(r.price)}</b></span>
+      <span><small>${r.category}</small><strong>${r.title}</strong><b>${priceLabel(r)}</b></span>
     </button>`).join("")}</div></div>`;
 }
 

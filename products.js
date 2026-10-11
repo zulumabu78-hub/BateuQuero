@@ -780,5 +780,31 @@ const products = [
       "Algodão"
     ],
     "seenAt": "08/10/2026"
+  },
+  {
+    "id": "espanador-microfibra-flexivel",
+    "title": "Espanador de Microfibra Flexível para Limpeza",
+    "short": "Cabeça flexível para alcançar móveis, luminárias, cantos e áreas difíceis.",
+    "hook": "Um achado simples para facilitar a limpeza de superfícies e espaços estreitos. A cabeça de microfibra se adapta a diferentes posições e ajuda a alcançar pontos que normalmente dão mais trabalho.",
+    "category": "Casa",
+    "price": null,
+    "oldPrice": null,
+    "discount": null,
+    "installments": "Confira o preço atual no anúncio",
+    "badge": "Novo achado",
+    "badge2": "Limpeza prática",
+    "link": "https://meli.la/33CZ8S8",
+    "image": "assets/products/espanador-microfibra-flexivel.webp",
+    "theme": [
+      "#b9c4c9",
+      "#6f7f86"
+    ],
+    "icon": "✦",
+    "reasons": [
+      "Cabeça flexível de microfibra",
+      "Útil para áreas de difícil acesso",
+      "Uso em móveis, luminárias e cantos"
+    ],
+    "seenAt": "11/10/2026"
   }
 ];
