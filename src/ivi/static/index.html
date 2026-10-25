@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080f19">
+  <meta name="description" content="I.V.I. — sua assistente pessoal com inteligência, voz e memória locais.">
+  <title>I.V.I. — Inteligência Virtual Independente</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body data-state="idle">
+  <div class="boot-screen" id="bootScreen" aria-hidden="true">
+    <span class="boot-orbit"></span><strong>I.V.I.</strong><span>INICIANDO INTERFACE</span>
+  </div>
+  <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></symbol>
+    <symbol id="i-mic-off" viewBox="0 0 24 24"><path d="m3 3 18 18M9 9v3a3 3 0 0 0 5 2M15 9V5a3 3 0 0 0-6 0M5 10v2a7 7 0 0 0 12 5M19 10v2a7 7 0 0 1-.5 2.6M12 19v3M8 22h8"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="10" cy="18" r="2"/></symbol>
+    <symbol id="i-memory" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7M12 5v15"/></symbol>
+    <symbol id="i-voice" viewBox="0 0 24 24"><path d="m11 5-6 5H2v4h3l6 5V5ZM15 8a5 5 0 0 1 0 8M18 5a9 9 0 0 1 0 14"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+  </svg>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="I.V.I., início"><span class="brand-symbol"><i></i><i></i><i></i></span><span>I.V.I.<small>INTELIGÊNCIA VIRTUAL INDEPENDENTE</small></span></a>
+    <div class="connection-pill" id="connectionPill"><span class="status-dot"></span><span id="connectionLabel">Conectando</span></div>
+    <nav class="top-actions" aria-label="Controles da assistente">
+      <button class="icon-text-button" id="memoryOpen" title="Memórias"><svg><use href="#i-memory"/></svg><span>Memória</span></button>
+      <button class="icon-button" id="settingsOpen" title="Configurações" aria-label="Abrir configurações"><svg><use href="#i-settings"/></svg></button>
+    </nav>
+  </header>
+
+  <main class="workspace">
+    <section class="presence-panel" aria-labelledby="presenceTitle">
+      <div class="presence-heading"><span class="eyebrow">SEU ESPAÇO DE CONEXÃO</span><span class="local-chip">PROCESSAMENTO LOCAL</span></div>
+      <div class="core-field">
+        <div class="core-crosshair crosshair-top"></div><div class="core-crosshair crosshair-bottom"></div>
+        <span class="core-coordinate coordinate-left">IVI / NÚCLEO</span><span class="core-coordinate coordinate-right" id="coreMode">EM ESPERA</span>
+        <canvas id="coreCanvas" aria-label="Núcleo digital animado da I.V.I."></canvas>
+        <div class="core-halo"></div>
+      </div>
+      <div class="presence-caption">
+        <div class="state-indicator"><span></span><p id="stateLabel">Em espera</p></div>
+        <h1 id="presenceTitle">Uma nova forma<br>de <em>estar presente.</em></h1>
+        <p class="state-description" id="stateDescription">Um espaço para conversar, criar e fazer acontecer.</p>
+      </div>
+      <div class="voice-console">
+        <canvas id="waveCanvas" aria-label="Intensidade do áudio captado ou reproduzido"></canvas>
+        <div class="voice-controls">
+          <button id="voiceButton" class="small-control" aria-pressed="true" title="Ativar ou silenciar respostas por voz"><svg><use href="#i-voice"/></svg><span id="voiceLabel">Voz ativada</span></button>
+          <button id="micButton" class="mic-button" aria-pressed="false" aria-label="Ativar microfone"><svg id="micIcon"><use href="#i-mic"/></svg></button>
+          <button id="interruptButton" class="small-control interrupt-control" disabled title="Interromper resposta"><span class="stop-square"></span><span>Interromper</span></button>
+        </div>
+        <p class="mic-caption" id="micLabel">Microfone desligado <span>· toque para conversar</span></p>
+      </div>
+      <div class="resource-strip" aria-label="Uso real dos recursos do computador">
+        <div><span class="resource-icon">◷</span><span>CPU <strong id="cpuValue">—</strong></span></div>
+        <span class="resource-divider"></span>
+        <div><svg><use href="#i-memory"/></svg><span>MEMÓRIA <strong id="ramValue">—</strong></span></div>
+        <span class="resource-divider"></span>
+        <div><span class="privacy-dot"></span><span>SEM NUVEM OBRIGATÓRIA</span></div>
+      </div>
+    </section>
+
+    <section class="conversation-panel" aria-labelledby="conversationTitle">
+      <header class="conversation-header"><div><span class="eyebrow">DIÁLOGO CONTÍNUO</span><h2 id="conversationTitle">Conversa</h2></div><button class="icon-button" id="newConversation" title="Limpar conversa" aria-label="Limpar histórico da conversa"><svg><use href="#i-plus"/></svg></button></header>
+      <div class="model-strip" id="modelStrip" aria-label="Disponibilidade dos modelos locais"><span data-model="llm"><i></i>Inteligência</span><span data-model="stt"><i></i>Escuta</span><span data-model="tts"><i></i>Voz</span></div>
+      <div class="connection-notice" id="connectionNotice" role="status" hidden></div>
+      <div class="messages" id="messages" role="log" aria-label="Mensagens da conversa" aria-live="polite">
+        <div class="empty-conversation" id="emptyConversation"><span class="empty-mark">✦</span><span class="eyebrow">OLÁ. EU SOU A I.V.I.</span><h3>O que vamos<br>fazer hoje?</h3><p>Uma ideia, uma pergunta ou o começo de algo novo.</p><div class="starter-prompts"><button data-prompt="/ajuda">Conhecer os comandos <svg><use href="#i-arrow"/></svg></button><button data-prompt="/memorias">Explorar minhas memórias <svg><use href="#i-arrow"/></svg></button></div></div>
+      </div>
+      <div class="transcript-preview" id="transcriptPreview" hidden><span>VOCÊ DISSE</span><p></p></div>
+      <form id="chatForm" class="chat-form"><label class="sr-only" for="chatInput">Sua mensagem para a I.V.I.</label><textarea id="chatInput" rows="1" maxlength="4000" placeholder="Escreva para a I.V.I.…" autocomplete="off"></textarea><button id="sendButton" type="submit" aria-label="Enviar mensagem"><svg><use href="#i-send"/></svg></button></form>
+      <p class="composer-hint"><span>Enter para enviar <span class="hint-separator">·</span> Shift + Enter para nova linha</span><span class="local-data">Seus dados, aqui.</span></p>
+    </section>
+  </main>
+  <footer class="app-footer"><span>I.V.I. <i>PERSONAL INTELLIGENCE SYSTEM</i></span><span id="platformLabel">AMBIENTE LOCAL</span><time id="clock"></time></footer>
+
+  <dialog id="settingsDialog" class="panel-dialog">
+    <div class="dialog-heading"><div><span class="eyebrow">DO SEU JEITO</span><h2>Configurações</h2></div><button class="icon-button" data-close="settingsDialog" aria-label="Fechar configurações"><svg><use href="#i-close"/></svg></button></div>
+    <div class="settings-content">
+      <div class="setting-row"><div><label for="wakeWordSetting">Ativação por “Ivi”</label><p>Com o microfone ativo, aguarda seu nome na transcrição antes de responder.</p></div><input type="checkbox" id="wakeWordSetting" class="switch" role="switch"></div>
+      <div class="setting-row"><div><label for="voiceSetting">Respostas em voz</label><p>Requer uma voz neural local configurada.</p></div><input type="checkbox" id="voiceSetting" class="switch" role="switch" checked></div>
+      <div class="setting-row rate-row"><div><label for="rateSetting">Ritmo da voz</label><p>Ajuste para acompanhar seu ritmo.</p></div><output id="rateOutput">1,0×</output><input id="rateSetting" type="range" min="0.7" max="1.4" step="0.1" value="1"></div>
+      <div class="model-details"><h3>Seu núcleo local</h3><p>Os modelos são executados no computador onde o servidor Python está aberto.</p><div id="modelDetails"></div></div>
+      <p class="settings-note">O microfone começa sempre desligado. O áudio só é enviado ao servidor local durante uma sessão ativada por você. O cancelamento de eco depende do navegador e do dispositivo; fones de ouvido ajudam nas interrupções.</p>
+    </div>
+  </dialog>
+  <dialog id="memoryDialog" class="panel-dialog">
+    <div class="dialog-heading"><div><span class="eyebrow">CONTINUIDADE ENTRE CONVERSAS</span><h2>Memória</h2></div><button class="icon-button" data-close="memoryDialog" aria-label="Fechar memórias"><svg><use href="#i-close"/></svg></button></div>
+    <p class="memory-intro">Guarde o que você quer que a I.V.I. leve para as próximas conversas. Você pode apagar cada lembrança.</p>
+    <form id="memoryForm" class="memory-form"><label class="sr-only" for="memoryInput">Nova memória</label><input id="memoryInput" maxlength="2000" placeholder="Algo importante para lembrar…" required><button class="primary-button" type="submit">Guardar</button></form>
+    <div id="memoryList" class="memory-list"></div>
+  </dialog>
+  <dialog id="toolDialog" class="panel-dialog tool-dialog">
+    <div class="dialog-heading"><div><span class="eyebrow">VOCÊ NO CONTROLE</span><h2 id="toolTitle">Autorizar ação</h2></div></div>
+    <p id="toolDescription"></p><div class="tool-dialog-actions"><button class="secondary-button" id="toolReject">Cancelar</button><button class="primary-button" id="toolApprove">Autorizar</button></div>
+  </dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,112 @@
+# I.V.I. — Inteligência Virtual Independente
+
+[Especificação original](docs/REQUISITOS.md) · [Validação executada e pendências](docs/VALIDACAO.md) · [Interface desktop](docs/interface-desktop.png)
+
+Assistente pessoal em Python com interface própria, conversa por texto, memória persistente, voz local opcional e ferramentas autorizadas para Windows. O projeto usa llama.cpp, faster-whisper e Piper diretamente; não depende de OpenAI, Ollama ou uma API paga.
+
+Esta é uma primeira implementação funcional da arquitetura. Os modelos neurais não acompanham o código. Sem eles, a interface, a memória e os comandos locais continuam disponíveis, mas a I.V.I. informa que ainda não pode gerar conversas, transcrever ou sintetizar voz. Ela não simula uma inteligência com respostas prontas.
+
+## Perfil do seu computador
+
+O perfil inicial considera **AMD A4-6300, 8 GB de RAM, GeForce GT 420 e 1 TB de armazenamento**. RAM e armazenamento são recursos diferentes: o espaço de 1 TB comporta os modelos, mas não aumenta a memória disponível para inferência.
+
+O processamento é por CPU, com duas threads e contexto de 1.024 tokens. A GT 420 não é usada para inferência. O modelo sugerido, Qwen2.5 0.5B Instruct quantizado em Q4, é uma escolha pequena para começar; sua capacidade de conversar em português e raciocinar é limitada. O Whisper tiny prioriza recursos baixos e pode errar com ruído e fala informal. O Piper fornece voz neural em português brasileiro, mas não garante entonação emocional ou naturalidade de serviços maiores. Nenhuma estimativa de latência foi medida nesse computador.
+
+## Iniciar no Windows
+
+Instale Python 3.11 de [python.org](https://www.python.org/downloads/windows/) com o Python Launcher. Na pasta do projeto, use o PowerShell:
+
+```powershell
+.\scripts\setup-windows.ps1
+.\.venv\Scripts\python.exe -m ivi
+```
+
+Abra `http://127.0.0.1:8765` no próprio computador. O microfone começa desligado e só é solicitado ao pressionar o controle de microfone. Para encerrar o servidor, use `Ctrl+C` no terminal.
+
+O script cria `.venv` e copia `.env.example` para `.env` somente se o arquivo ainda não existir. Ele não altera a política de execução do PowerShell e não requer privilégios de administrador. Se sua política bloquear scripts, use a instalação manual abaixo ou uma política aprovada por você; não há instrução de contorno no instalador.
+
+### Instalação manual
+
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e .
+Copy-Item .env.example .env   # apenas se ainda nao houver .env
+.\.venv\Scripts\python.exe -m ivi
+```
+
+Instalar somente o pacote básico não instala os mecanismos neurais nem baixa modelos.
+
+## Habilitar linguagem e voz locais
+
+Para instalar os mecanismos e baixar os modelos pequenos sugeridos:
+
+```powershell
+.\scripts\setup-windows.ps1 -WithNeural -WithModels
+```
+
+O script solicita uma compilação conservadora do `llama-cpp-python`, sem AVX/AVX2, BMI2, FMA e F16C, limitada a duas tarefas. Essa configuração ainda não foi validada no A4 físico. A compilação exige [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) com desenvolvimento C++ e CMake, e pode demorar e ocupar memória. Executar com `-WithNeural` força a recompilação do mecanismo a partir do código-fonte, ignorando wheels em cache; depois resolve as dependências, sem forçar a reinstalação de todas elas. Executar sem esse parâmetro preserva o mecanismo já instalado. Apenas alterar `CMAKE_ARGS` e executar um `pip install` comum não recompila um pacote que o pip considera satisfeito. Wheels das outras bibliotecas também precisam ser compatíveis com a CPU: um erro `Illegal instruction` ou uma DLL incompatível deve ser diagnosticado no Windows, sem presumir que uma GPU antiga o resolverá.
+
+Você pode separar as etapas:
+
+```powershell
+.\scripts\setup-windows.ps1 -WithNeural
+.\.venv\Scripts\python.exe -m pip install -e ".[models]"
+.\.venv\Scripts\python.exe -m ivi.download_models --list
+.\.venv\Scripts\python.exe -m ivi.download_models
+```
+
+O downloader consulta a revisão real dos repositórios e fixa cada download no commit retornado. Baixa apenas GGUF, arquivos CTranslate2 e a voz ONNX selecionada, além de metadados e licenças disponíveis. Quando o provedor informa SHA256 de um arquivo LFS, o conteúdo é comparado antes de ser registrado como concluído. O manifesto registra também o hash SHA256 calculado, a origem e o commit de cada componente; isso não substitui a verificação de procedência e das licenças.
+
+As fontes selecionadas, validadas novamente pelo downloader na execução, são:
+
+| Componente | Fonte | Uso |
+| --- | --- | --- |
+| LLM | [Qwen/Qwen2.5-0.5B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF) | `qwen2.5-0.5b-instruct-q4_k_m.gguf` |
+| STT | [Systran/faster-whisper-tiny](https://huggingface.co/Systran/faster-whisper-tiny) | Transcrição local com CPU/int8 |
+| TTS | [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices/tree/main/pt/pt_BR/faber/medium) | `pt_BR-faber-medium.onnx` e JSON da voz |
+
+Consulte a licença do modelo e o `MODEL_CARD` da voz: a licença de um repositório, de uma voz e de seu dataset pode diferir. As bibliotecas também possuem suas próprias licenças; o [Piper atual](https://github.com/OHF-Voice/piper1-gpl) é distribuído sob GPL.
+
+Para repetir uma versão específica, use `--component llm --revision COMMIT`, trocando o componente e o SHA conforme o manifesto. Downloads não ocorrem ao iniciar o servidor. Depois do download, confira os caminhos `IVI_*` impressos e reinicie a I.V.I.; o downloader nunca sobrescreve `.env`.
+
+### Configuração
+
+O arquivo `.env` na pasta em que você inicia o programa define os caminhos. Variáveis do processo têm prioridade. `IVI_ENV_FILE` permite selecionar outro arquivo.
+
+| Variável | Descrição |
+| --- | --- |
+| `IVI_DATA_DIR` | Banco SQLite e pasta de modelos; `.ivi` no exemplo portátil |
+| `IVI_LLM_MODEL` | Caminho de um GGUF Instruct compatível com llama.cpp |
+| `IVI_STT_MODEL` | Diretório local do modelo faster-whisper |
+| `IVI_TTS_MODEL` | Caminho do arquivo ONNX da voz Piper |
+| `IVI_TTS_CONFIG` | JSON correspondente à mesma voz |
+| `IVI_CPU_THREADS` | `2` para o perfil A4 |
+| `IVI_CONTEXT_TOKENS` | `1024` para reduzir memória e latência |
+| `IVI_PORT` | `8765` por padrão; o servidor escuta somente em loopback |
+
+Sem `IVI_DATA_DIR`, os dados ficam em `%LOCALAPPDATA%/IVI` no Windows e `~/.local/share/ivi` no Linux. Os dados persistem entre reinicializações. Memórias são adicionadas explicitamente; revise e apague pela interface o que não quiser conservar.
+
+## O que a experiência faz
+
+- Conversa por texto com histórico e geração de tokens em streaming quando um GGUF compatível está configurado.
+- Transcrição local de trechos de fala, detectados por atividade de áudio no navegador. A escuta contínua exige uma sessão de microfone autorizada.
+- Síntese neural local por frases com Piper e reprodução em sequência. Não é síntese neural incremental de cada token nem controle emocional de prosódia.
+- Interrupção de geração/reprodução ao começar uma nova entrada; o núcleo visual acompanha níveis reais de áudio.
+- Opção de ativação pelo nome transcrito. Não é um detector dedicado de palavra de ativação em baixíssimo consumo.
+- Pedidos de ferramentas passam por confirmação e por uma lista limitada de ações. Não há execução livre de código de um modelo.
+- Spotify abre uma busca; escolher e reproduzir uma faixa requer interação no aplicativo. Controle de reprodução autenticado não está implementado.
+
+O navegador pede redução de ruído e cancelamento de eco, mas a eficácia depende do microfone, do driver e do navegador. Use fones no primeiro teste: a captura da própria voz e interrupções indevidas não podem ser descartadas sem teste no equipamento. O indicador e o botão de microfone mostram e encerram a captura.
+
+## Desenvolvimento e validação
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[test]"
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
+
+Os testes de infraestrutura com modelos substitutos verificam contratos, cancelamento, persistência e controles de ferramentas. Eles não validam qualidade de voz, entendimento de português, latência ou inferência real. Esses pontos exigem os modelos e o equipamento de destino. Teste o microfone, a reprodução, as interrupções e a abertura de aplicativos no Windows antes de considerar o conjunto pronto para uso diário.
+
+Neste ambiente de criação Linux, o acesso ao Hugging Face foi recusado pelo proxy (`CONNECT 403`). Nenhum modelo neural foi baixado ou executado aqui. A interface e o servidor podem ser validados sem esses arquivos; inferência, microfone físico e automação no Windows permanecem pendentes de validação no computador de destino.
+
+O código está organizado em `src/ivi`: configuração, provedores locais, memória, ferramentas, servidor assíncrono e interface estática. Não há dependências de CDN na interface. Evite expor a porta à rede: as ferramentas operam no computador do servidor, não em um computador remoto que apenas abriu a página.

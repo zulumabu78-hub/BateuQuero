@@ -1,0 +1,49 @@
+{
+  "passed": 10,
+  "failed": 0,
+  "checks": [
+    {
+      "name": "initial connection, honest model state, no microphone permission request",
+      "status": "passed"
+    },
+    {
+      "name": "help command creates one real user and assistant message",
+      "status": "passed"
+    },
+    {
+      "name": "free conversation reports missing model honestly",
+      "status": "passed"
+    },
+    {
+      "name": "memory form creates text safely, persists and deletes",
+      "status": "passed"
+    },
+    {
+      "name": "remember command and memory list integration",
+      "status": "passed"
+    },
+    {
+      "name": "settings persist wake activation and speech rate across reload",
+      "status": "passed"
+    },
+    {
+      "name": "desktop tool requires explicit confirmation and can be rejected",
+      "status": "passed"
+    },
+    {
+      "name": "unavailable STT prevents capture without prompting permission",
+      "status": "passed"
+    },
+    {
+      "name": "mobile layout has no horizontal overflow and dialogs remain usable",
+      "status": "passed"
+    },
+    {
+      "name": "no browser exceptions, CSP violations or failed static resources",
+      "status": "passed"
+    }
+  ],
+  "pageErrors": [],
+  "consoleErrors": [],
+  "resourceFailures": []
+}

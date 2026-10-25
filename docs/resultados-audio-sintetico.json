@@ -1,0 +1,32 @@
+{
+  "validation": "SYNTHETIC FRONTEND AUDIO ONLY; no real STT/TTS/LLM, microphone hardware or acoustic echo cancellation claim",
+  "passed": 6,
+  "failed": 0,
+  "checks": [
+    {
+      "name": "synthetic microphone remains off until explicit activation",
+      "status": "passed"
+    },
+    {
+      "name": "AudioWorklet and VAD produce a real PCM16 mono 16 kHz utterance WAV",
+      "status": "passed"
+    },
+    {
+      "name": "microphone mute immediately stops its MediaStream track",
+      "status": "passed"
+    },
+    {
+      "name": "synthetic WAV playback drives the visible waveform",
+      "status": "passed"
+    },
+    {
+      "name": "synthetic user voice interrupts playback and emits interrupt",
+      "status": "passed"
+    },
+    {
+      "name": "synthetic audio pipeline has no browser or worklet errors",
+      "status": "passed"
+    }
+  ],
+  "errors": []
+}
