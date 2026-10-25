@@ -97,6 +97,14 @@ def parse_tool_request(text: str) -> ToolRequest | None:
     if spotify:
         return _spotify_request(spotify.group(1))
 
+    normalized = _normalize(text)
+    if re.fullmatch(r"(?:coloca|coloque|toca|toque|bota|bote|reproduz|reproduza|poe|ponha)\s+(?:uma\s+)?(?:musica|som)(?:\s+(?:pra|para)\s+mim)?", normalized):
+        return ToolRequest(
+            "open_app", "Abrir Spotify para escolher uma música",
+            "Abrir o Spotify neste computador. Você escolhe a faixa e inicia a reprodução no aplicativo.",
+            {"app": "spotify"},
+        )
+
     opening = re.fullmatch(r"(?:abre|abra|abrir)\s+(?:(?:o|a|um|uma)\s+)?(.+)", text, flags=re.IGNORECASE)
     if not opening:
         return None

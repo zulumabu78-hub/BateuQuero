@@ -37,6 +37,7 @@ class Settings:
     cpu_threads: int = 2
     speech_rate: float = 1.0
     port: int = 8765
+    llm_server: Path | None = None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -57,4 +58,5 @@ class Settings:
             context_tokens=_bounded_int("IVI_CONTEXT_TOKENS", 1024, 512, 8192),
             cpu_threads=_bounded_int("IVI_CPU_THREADS", 2, 1, 32),
             port=_bounded_int("IVI_PORT", 8765, 1024, 65535),
+            llm_server=_optional_path("IVI_LLM_SERVER_EXE"),
         )

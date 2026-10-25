@@ -8,17 +8,48 @@ const { spawn } = require('node:child_process');
 const { chromium } = require('playwright');
 
 const project = path.resolve(__dirname, '..');
-const output = process.env.IVI_HUD_OUTPUT || '/workspace/.cloud-setup/IVI-v2';
+const output = process.env.IVI_HUD_OUTPUT || '/workspace/.cloud-setup/IVI-v3';
 const checks = [];
 const consoleErrors = [];
 const pageErrors = [];
 const resourceFailures = [];
 const cspViolations = [];
 const dimensions = [];
+const renderingSamples = [];
 let server, browser, temporary;
 let serverOutput = '';
 
 const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+
+function instrumentRendering() {
+  window.__renderCounters = { raf: 0, shortTimers: 0, coreClears: 0, coreBlits: 0, waveClears: 0 };
+  const frame = window.requestAnimationFrame.bind(window);
+  window.requestAnimationFrame = callback => frame(time => { window.__renderCounters.raf++; return callback(time); });
+  const timeout = window.setTimeout.bind(window);
+  window.setTimeout = (callback, delay, ...arguments_) => {
+    if (typeof callback !== 'function') return timeout(callback, delay, ...arguments_);
+    return timeout((...received) => {
+      if (Number(delay) <= 250) window.__renderCounters.shortTimers++;
+      return callback(...received);
+    }, delay, ...arguments_);
+  };
+  const prototype = CanvasRenderingContext2D.prototype;
+  for (const method of ['clearRect', 'drawImage']) {
+    const original = prototype[method];
+    prototype[method] = function (...arguments_) {
+      if (this.canvas.id === 'coreCanvas') window.__renderCounters[method === 'clearRect' ? 'coreClears' : 'coreBlits']++;
+      if (this.canvas.id === 'waveCanvas' && method === 'clearRect') window.__renderCounters.waveClears++;
+      return original.apply(this, arguments_);
+    };
+  }
+}
+
+function observePage(page) {
+  page.on('pageerror', error => pageErrors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
+  page.on('requestfailed', request => resourceFailures.push(`${request.url()}: ${request.failure()?.errorText}`));
+  page.on('response', response => { if (response.status() >= 400) resourceFailures.push(`${response.status()} ${response.url()}`); });
+}
 
 async function freePort() {
   const listener = net.createServer();
@@ -115,6 +146,7 @@ async function sendText(page, text) {
     ...(proxy ? { proxy: { server: proxy, bypass: 'localhost,127.0.0.1' } } : {}),
   });
   const context = await browser.newContext({ viewport: { width: 1366, height: 768 }, reducedMotion: 'reduce' });
+  await context.addInitScript(instrumentRendering);
   await context.addInitScript(() => {
     window.__micRequests = 0;
     window.__cspViolations = [];
@@ -123,10 +155,7 @@ async function sendText(page, text) {
     if (original) navigator.mediaDevices.getUserMedia = (...arguments_) => { window.__micRequests++; return original(...arguments_); };
   });
   const page = await context.newPage();
-  page.on('pageerror', error => pageErrors.push(error.message));
-  page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
-  page.on('requestfailed', request => resourceFailures.push(`${request.url()}: ${request.failure()?.errorText}`));
-  page.on('response', response => { if (response.status() >= 400) resourceFailures.push(`${response.status()} ${response.url()}`); });
+  observePage(page);
   await page.goto(base, { waitUntil: 'networkidle' });
   await connected(page);
 
@@ -137,6 +166,8 @@ async function sendText(page, text) {
     assert.equal(await page.locator('#modelStrip .unavailable').count(), 3);
     assert.equal(await page.locator('#micButton').getAttribute('aria-pressed'), 'false');
     assert.equal(await page.evaluate(() => window.__micRequests), 0);
+    assert.equal(status.settings.performance_mode, 'eco');
+    assert.equal(status.settings.animation_enabled, true);
     assert.match(await page.locator('#cpuValue').textContent(), /^\d+%$/);
     assert.match(await page.locator('#ramValue').textContent(), /^\d+%$/);
     const ramDetail = (await page.locator('#ramDetail').textContent()).replaceAll(',', '.');
@@ -149,13 +180,78 @@ async function sendText(page, text) {
     }
   }, page);
 
+  await run('missing conversation model has an actionable setup dialog with honest Linux capability', async () => {
+    const job = await (await context.request.get(base + '/api/setup')).json();
+    assert.equal(job.can_install, false, 'This disposable cloud server is Linux, not the user Windows computer');
+    await inside(page, '#setupOpen');
+    assert.match(await page.locator('#setupOpen').textContent(), /ativar conversa local/i);
+    await page.locator('#setupOpen').click();
+    await page.locator('#setupDialog').waitFor({ state: 'visible' });
+    await page.waitForFunction(() => document.querySelector('#setupStatus').textContent.trim().length > 0);
+    assert.equal(await page.locator('#setupConversationButton').isDisabled(), true);
+    assert.equal(await page.locator('#setupVoiceButton').isDisabled(), true);
+    assert.match(await page.locator('#setupStatus').textContent(), /Windows|não.*disponível|não.*suport|plataforma/i);
+    assert.equal(await page.locator('#setupStatus').isVisible(), true);
+    await page.screenshot({ path: path.join(output, 'setup-linux.png') });
+    await page.locator('[data-close="setupDialog"]').click();
+  }, page);
+
+  await run('synthetic setup fixture shows progress, honest failure, retry and cooperative cancel controls', async () => {
+    const requests = [];
+    let fixture = {
+      state: 'idle', component: null, can_install: true, can_install_voice: false,
+      progress: null, message: 'Fixture sintética: preparação disponível.', log: [],
+    };
+    let posts = 0;
+    const setupURL = base + '/api/setup';
+    await context.route(setupURL, async route => {
+      const method = route.request().method();
+      requests.push({ method, body: route.request().postDataJSON() });
+      if (method === 'POST') {
+        posts++;
+        assert.deepEqual(route.request().postDataJSON(), { component: 'conversation' });
+        fixture = { ...fixture, state: 'running', component: 'conversation', progress: posts === 1 ? 25 : 10, message: 'Fixture sintética: baixando arquivos.', log: ['Fixture segura <img src=x onerror=alert(1)>'] };
+      } else if (method === 'DELETE') {
+        fixture = { ...fixture, state: 'cancelled', progress: null, message: 'Fixture sintética: preparação cancelada.' };
+      }
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixture) });
+    });
+    try {
+      await page.locator('#setupQuickOpen').click();
+      await page.waitForFunction(() => !document.querySelector('#setupConversationButton').disabled);
+      assert.equal(requests.filter(request => request.method === 'POST').length, 0, 'Opening setup must never auto-install');
+      await page.locator('#setupConversationButton').click();
+      await page.waitForFunction(() => document.querySelector('#setupStatus').dataset.state === 'running');
+      assert.equal(await page.locator('#setupProgress').getAttribute('value'), '25');
+      assert.equal(await page.locator('#setupConversationButton').isDisabled(), true);
+      assert.equal(await page.locator('#setupCancelButton').isVisible(), true);
+      assert.equal(await page.locator('#setupDetails img').count(), 0);
+      fixture = { ...fixture, state: 'failed', progress: null, message: 'Fixture sintética: download falhou; nenhum modelo está pronto.' };
+      await page.waitForFunction(() => document.querySelector('#setupStatus').dataset.state === 'failed', null, { timeout: 7000 });
+      assert.match(await page.locator('#setupStatus').textContent(), /falhou/);
+      assert.equal(await page.locator('#setupConversationButton').isDisabled(), false);
+      assert.equal(await page.locator('#modelStrip .unavailable').count(), 3, 'A setup fixture must not fabricate loaded model readiness');
+      await page.locator('#setupConversationButton').click();
+      await page.waitForFunction(() => document.querySelector('#setupStatus').dataset.state === 'running');
+      await page.locator('#setupCancelButton').click();
+      await page.waitForFunction(() => document.querySelector('#setupStatus').dataset.state === 'cancelled');
+      assert.equal(requests.filter(request => request.method === 'POST').length, 2);
+      assert.equal(requests.filter(request => request.method === 'DELETE').length, 1);
+      assert.equal(await page.locator('#setupCancelButton').isVisible(), false);
+      assert.equal(await page.locator('#modelStrip .unavailable').count(), 3);
+      await page.locator('[data-close="setupDialog"]').click();
+    } finally {
+      await context.unroute(setupURL);
+    }
+  }, page);
+
   await run('real browser fullscreen enters and exits through the Fullscreen API', async () => {
     assert.equal(await page.evaluate(() => document.fullscreenElement === null), true);
     await page.locator('#fullscreenButton').click();
-    await page.waitForFunction(() => document.fullscreenElement !== null, null, { timeout: 5000 });
+    await page.waitForFunction(() => document.fullscreenElement !== null && document.querySelector('#fullscreenButton').getAttribute('aria-pressed') === 'true', null, { timeout: 5000 });
     assert.equal(await page.locator('#fullscreenButton').getAttribute('aria-pressed'), 'true');
     await page.evaluate(() => document.exitFullscreen());
-    await page.waitForFunction(() => document.fullscreenElement === null);
+    await page.waitForFunction(() => document.fullscreenElement === null && document.querySelector('#fullscreenButton').getAttribute('aria-pressed') === 'false');
     assert.equal(await page.locator('#fullscreenButton').getAttribute('aria-pressed'), 'false');
   }, page);
 
@@ -163,7 +259,7 @@ async function sendText(page, text) {
     const count = await page.locator('.message.assistant').count();
     await sendText(page, '/ajuda');
     await page.waitForFunction(expected => document.querySelectorAll('.message.assistant').length === expected + 1, count);
-    assert.match(await page.locator('.message.assistant').last().textContent(), /GGUF|modelo/i);
+    assert.match(await page.locator('.message.assistant').last().textContent(), /GGUF|modelo|ativar|comando|memória/i);
     assert.equal(await page.locator('#chatInput').inputValue(), '');
     await inside(page, '#chatForm');
     await noDocumentOverflow(page);
@@ -195,6 +291,8 @@ async function sendText(page, text) {
     await page.locator('#wakeWordSetting').check();
     await page.locator('#rateSetting').fill('1.2');
     await page.locator('#rateSetting').dispatchEvent('change');
+    await page.locator('#performanceSetting').uncheck();
+    await page.locator('#animationSetting').uncheck();
     await page.waitForFunction(async () => (await (await fetch('/api/status')).json()).settings.speech_rate === 1.2);
     await page.locator('[data-close="settingsDialog"]').click();
     await page.reload({ waitUntil: 'networkidle' });
@@ -202,14 +300,55 @@ async function sendText(page, text) {
     await page.locator('#settingsOpen').click();
     assert.equal(await page.locator('#wakeWordSetting').isChecked(), true);
     assert.equal(await page.locator('#rateSetting').inputValue(), '1.2');
+    assert.equal(await page.locator('#performanceSetting').isChecked(), false);
+    assert.equal(await page.locator('#animationSetting').isChecked(), false);
+    assert.equal(await page.locator('body').getAttribute('data-performance'), 'balanced');
+    assert.equal(await page.locator('body').getAttribute('data-animation'), 'off');
     await page.locator('[data-close="settingsDialog"]').click();
+  }, page);
+
+  await run('eco scheduling reduces real rendering work and disabled animation sleeps at idle', async () => {
+    const benchmark = await browser.newContext({ viewport: { width: 1366, height: 768 }, reducedMotion: 'no-preference' });
+    await benchmark.addInitScript(instrumentRendering);
+    const measured = await benchmark.newPage();
+    observePage(measured);
+    const sample = async (mode, enabled, milliseconds) => {
+      await measured.locator('#settingsOpen').click();
+      await measured.locator('#performanceSetting').setChecked(mode === 'eco');
+      await measured.locator('#animationSetting').setChecked(enabled);
+      await measured.locator('[data-close="settingsDialog"]').click();
+      await measured.waitForFunction(values => document.body.dataset.performance === values.mode && document.body.dataset.animation === (values.enabled ? 'on' : 'off'), { mode, enabled });
+      await measured.waitForTimeout(350);
+      await measured.evaluate(() => { for (const key of Object.keys(window.__renderCounters)) window.__renderCounters[key] = 0; window.__renderStarted = performance.now(); });
+      await measured.waitForTimeout(milliseconds);
+      return measured.evaluate(({ mode, enabled }) => ({ mode, enabled, milliseconds: performance.now() - window.__renderStarted, ...window.__renderCounters }), { mode, enabled });
+    };
+    try {
+      await measured.goto(base, { waitUntil: 'networkidle' });
+      await connected(measured);
+      const balanced = await sample('balanced', true, 3200);
+      const eco = await sample('eco', true, 3200);
+      const off = await sample('eco', false, 1800);
+      renderingSamples.push(balanced, eco, off);
+      const frames = value => value.coreClears;
+      assert.ok(frames(balanced) >= 16 && frames(balanced) <= 40, `Balanced idle work outside budget: ${JSON.stringify(balanced)}`);
+      assert.ok(frames(eco) >= 8 && frames(eco) <= 24, `Eco idle work outside budget: ${JSON.stringify(eco)}`);
+      assert.ok(frames(eco) <= frames(balanced) * 0.8, `Eco must reduce visible canvas updates by at least 20%: ${JSON.stringify({ balanced, eco })}`);
+      assert.ok(eco.shortTimers <= balanced.shortTimers * 0.8 + 2, `Eco should reduce timer wakeups: ${JSON.stringify({ balanced, eco })}`);
+      assert.ok(frames(off) <= 1 && off.shortTimers <= 2 && off.raf <= 1, `Disabled idle animation should sleep: ${JSON.stringify(off)}`);
+    } finally {
+      await context.request.patch(base + '/api/settings', { data: { performance_mode: 'eco', animation_enabled: true } });
+      await benchmark.close();
+      await page.reload({ waitUntil: 'networkidle' });
+      await connected(page);
+    }
   }, page);
 
   await run('missing STT blocks capture with an explanation and no permission request', async () => {
     await page.locator('#micButton').click();
     assert.equal(await page.locator('#micButton').getAttribute('aria-pressed'), 'false');
     assert.equal(await page.evaluate(() => window.__micRequests), 0);
-    assert.match(await page.locator('#toast').textContent(), /reconhecimento de fala|modelo.*escuta/i);
+    assert.match(await page.locator('#toast').textContent(), /reconhecimento de fala|escuta/i);
   }, page);
 
   await run('application shortcuts require confirmation and files action respects Linux guard', async () => {
@@ -292,6 +431,10 @@ async function sendText(page, text) {
         await inside(page, '#settingsDialog');
         await inside(page, '[data-close="settingsDialog"]');
         await page.locator('[data-close="settingsDialog"]').click();
+        await page.locator('#setupQuickOpen').click();
+        await inside(page, '#setupDialog');
+        await inside(page, '[data-close="setupDialog"]');
+        await page.locator('[data-close="setupDialog"]').click();
       }
       cspViolations.push(...await page.evaluate(() => window.__cspViolations));
     }, page);
@@ -305,7 +448,7 @@ async function sendText(page, text) {
   }, page);
   await browser.close();
   browser = null;
-  const summary = { passed: checks.filter(check => check.status === 'passed').length, failed: checks.filter(check => check.status === 'failed').length, checks, dimensions, pageErrors, consoleErrors, resourceFailures, cspViolations };
+  const summary = { passed: checks.filter(check => check.status === 'passed').length, failed: checks.filter(check => check.status === 'failed').length, checks, dimensions, renderingSamples, renderingMeasurement: 'Browser callback/canvas work proxy on this cloud machine; not a CPU-percentage guarantee for AMD A4 hardware.', pageErrors, consoleErrors, resourceFailures, cspViolations };
   fs.writeFileSync(path.join(output, 'ui-hud-results.json'), JSON.stringify(summary, null, 2));
   console.log(JSON.stringify(summary, null, 2));
   process.exitCode = summary.failed ? 1 : 0;

@@ -14,6 +14,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "require_wake_word": False,
     "speech_rate": 1.0,
     "voice_enabled": True,
+    "performance_mode": "eco",
+    "animation_enabled": True,
 }
 
 
@@ -139,13 +141,16 @@ class MemoryStore:
             raise ValueError("Configuração desconhecida.")
         validated: dict[str, Any] = {}
         for key, value in values.items():
-            if key in {"require_wake_word", "voice_enabled"}:
+            if key in {"require_wake_word", "voice_enabled", "animation_enabled"}:
                 if not isinstance(value, bool):
                     raise ValueError(f"{key} deve ser verdadeiro ou falso.")
             elif key == "speech_rate":
                 if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0.7 <= value <= 1.5:
                     raise ValueError("A velocidade da voz deve estar entre 0,7 e 1,5.")
                 value = float(value)
+            elif key == "performance_mode":
+                if not isinstance(value, str) or value not in {"eco", "balanced"}:
+                    raise ValueError("Escolha o modo de animação econômico ou equilibrado.")
             validated[key] = value
         with self._connection() as connection:
             connection.executemany(

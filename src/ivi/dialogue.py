@@ -18,11 +18,11 @@ from .tools import ToolRegistry, parse_tool_request
 
 
 HELP = (
-    "Sou a I.V.I. Para conversar livremente, configure um modelo GGUF local nas configurações do projeto. "
-    "Os comandos locais funcionam sem esse modelo: /lembrar seguido de uma informação, "
-    "/memorias, abrir calculadora, abrir bloco de notas e pesquisar Laufey no Spotify. "
-    "Ações no computador pedem sua confirmação e exigem execução no Windows. "
-    "Use o botão do microfone para iniciar uma sessão de voz; ele fica desligado até você permitir."
+    "Sou a I.V.I. Você pode me pedir para abrir Spotify, Arquivos, Navegador ou Calculadora. "
+    "Eu peço sua confirmação antes de abrir um aplicativo. "
+    "Para guardar algo, escreva /lembrar seguido da informação; /memorias mostra suas anotações. "
+    "O botão Ativar conversa local prepara o modelo para conversar livremente. "
+    "A escuta e a voz podem ser preparadas na mesma janela."
 )
 SYSTEM_PROMPT = (
     "Você é I.V.I., uma assistente pessoal local. Converse em português brasileiro de forma "
@@ -156,7 +156,7 @@ class ConversationSession:
             await self.send({"type": "tool_confirmation", "id": identifier, "title": tool.title, "description": tool.description})
             return
         if not self.providers.status()["llm"]["ready"]:
-            raise ProviderUnavailable("O modelo de conversa local ainda não está disponível. Configure IVI_LLM_MODEL com um GGUF compatível; /ajuda e a memória já podem ser usados.")
+            raise ProviderUnavailable("A conversa local ainda precisa ser preparada. Clique em Ativar conversa local para baixar o modelo. Enquanto isso, posso abrir aplicativos e guardar suas anotações.")
         history = await asyncio.to_thread(self.store.recent_messages, 8)
         facts = await asyncio.to_thread(self.store.list_memories)
         context = SYSTEM_PROMPT

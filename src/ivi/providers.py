@@ -14,6 +14,7 @@ import importlib.util
 import io
 import json
 import math
+import os
 from pathlib import Path
 import threading
 from typing import Any, AsyncIterator, Callable
@@ -118,6 +119,7 @@ class LocalProviders:
         self._llm: Any = None
         self._stt: Any = None
         self._tts: Any = None
+        self._native: Any = None
         self._locks = {name: threading.Lock() for name in ("llm", "stt", "tts")}
         self._errors: dict[str, str] = {}
 
@@ -128,9 +130,45 @@ class LocalProviders:
         except (ImportError, ValueError, AttributeError):
             return False
 
+    def _runtime(self) -> dict[str, str]:
+        directory = getattr(self.settings, "data_dir", None)
+        if directory is None:
+            return {}
+        root = Path(directory).expanduser().resolve()
+        try:
+            path = root / "runtime.json"
+            if not path.resolve().is_relative_to(root) or not path.is_file() or path.stat().st_size > 65_536:
+                return {}
+            values = json.loads(path.read_text("utf-8"))
+            if not isinstance(values, dict):
+                return {}
+            selected = {}
+            for name in ("llm_engine", "llm_model", "stt_model", "tts_model", "tts_config"):
+                value = values.get(name)
+                if not isinstance(value, str) or not value:
+                    continue
+                candidate = Path(value).expanduser()
+                if candidate.is_absolute() and candidate.resolve().is_relative_to(root):
+                    selected[name] = str(candidate.resolve())
+            return selected
+        except (OSError, ValueError, TypeError):
+            return {}
+
+    @staticmethod
+    def _valid_path(name: str, path: Path) -> bool:
+        if name == "stt_model":
+            return path.is_dir() and all((path / part).is_file() for part in ("model.bin", "config.json", "tokenizer.json"))
+        if name == "llm_model":
+            return path.is_file() and path.suffix.lower() == ".gguf"
+        return path.is_file()
+
     def _path(self, name: str) -> Path | None:
         value = getattr(self.settings, name, None)
-        return Path(value).expanduser() if value else None
+        explicit = Path(value).expanduser() if value else None
+        if explicit and self._valid_path(name, explicit):
+            return explicit
+        runtime = self._runtime().get("llm_engine" if name == "llm_server" else name)
+        return Path(runtime) if runtime else explicit
 
     def _voice_config(self) -> Path | None:
         explicit = self._path("tts_config")
@@ -139,7 +177,7 @@ class LocalProviders:
 
     @property
     def _threads(self) -> int:
-        return max(1, min(4, int(getattr(self.settings, "cpu_threads", 2))))
+        return max(1, min(4, int(getattr(self.settings, "cpu_threads", 2)), max(1, (os.cpu_count() or 2) - 1)))
 
     def _availability(self, component: str) -> dict[str, Any]:
         package, variable = {
@@ -162,6 +200,15 @@ class LocalProviders:
             return {"ready": False, "detail": "Arquivo do modelo local não encontrado.", "loaded": False}
         if component == "llm" and path.suffix.lower() != ".gguf":
             return {"ready": False, "detail": "O modelo de linguagem deve ser um arquivo GGUF.", "loaded": False}
+        if component == "llm":
+            native = self._path("llm_server")
+            if native and native.is_file():
+                loaded = bool(self._native and self._native.loaded)
+                return {
+                    "ready": True,
+                    "loaded": loaded,
+                    "detail": "Conversa local carregada em CPU." if loaded else "Modelo e mecanismo locais instalados; o primeiro carregamento acontece ao conversar.",
+                }
         if component == "tts":
             config = self._voice_config()
             if config is None or not config.is_file():
@@ -186,6 +233,20 @@ class LocalProviders:
         availability = self._availability(component)
         if not availability["ready"]:
             raise ProviderUnavailable(availability["detail"])
+
+    def reset_errors(self) -> None:
+        """A completed explicit setup can make a previously missing engine usable."""
+        self._errors.clear()
+
+    async def aclose(self) -> None:
+        if self._native:
+            await self._native.aclose()
+
+    def _get_native(self):
+        if self._native is None:
+            from .native_llm import NativeEngine
+            self._native = NativeEngine(self.settings, self._path("llm_server"), self._path("llm_model"))
+        return self._native
 
     def _get_llm(self) -> Any:
         if self._llm is None:
@@ -267,6 +328,18 @@ class LocalProviders:
             for message in messages
         ):
             raise ValueError("O histórico enviado ao modelo é inválido.")
+        native = self._path("llm_server")
+        if native and native.is_file():
+            try:
+                async for token in self._get_native().stream_chat(messages, stop):
+                    yield token
+                self._errors.pop("llm", None)
+            except ContextWindowExceeded:
+                raise
+            except (RuntimeError, OSError) as error:
+                self._errors["llm"] = str(error)
+                raise RuntimeError(str(error)) from error
+            return
         loop = asyncio.get_running_loop()
         queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
         cancelled = threading.Event()

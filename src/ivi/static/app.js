@@ -15,7 +15,7 @@
     speaking: ['Conversando', 'Você pode me interromper para continuar.'],
     interrupted: ['Resposta interrompida', 'Vamos continuar do seu jeito.'],
   };
-  let settings = { require_wake_word: false, speech_rate: 1, voice_enabled: true };
+  let settings = { require_wake_word: false, speech_rate: 1, voice_enabled: true, performance_mode: 'eco', animation_enabled: true };
   let socket = null;
   let reconnectAttempt = 0;
   let reconnectTimer = null;
@@ -40,6 +40,10 @@
   let toastTimer = null;
   let settingsQueue = Promise.resolve();
   let settingsPending = 0;
+  let setupState = null;
+  let setupTimer = null;
+  let setupBusy = false;
+  let setupLoading = false;
   const narrowLayout = matchMedia('(max-width: 980px)');
 
   function selectView(view) {
@@ -77,7 +81,9 @@
         const body = await response.json();
         if (typeof body.detail === 'string') message = body.detail;
       } catch { /* Keep the HTTP error if response is not JSON. */ }
-      throw new Error(message);
+      const error = new Error(message);
+      error.status = response.status;
+      throw error;
     }
     if (response.status === 204) return null;
     return response.json();
@@ -172,7 +178,16 @@
 
   function applySettings(values) {
     if (!values) return;
+    const previousPerformance = settings.performance_mode;
+    const previousAnimation = settings.animation_enabled;
     settings = { ...settings, ...values };
+    settings.performance_mode = settings.performance_mode === 'balanced' ? 'balanced' : 'eco';
+    settings.animation_enabled = settings.animation_enabled !== false;
+    document.body.dataset.performance = settings.performance_mode;
+    document.body.dataset.animation = settings.animation_enabled ? 'on' : 'off';
+    if ($('#performanceSetting')) $('#performanceSetting').checked = settings.performance_mode === 'eco';
+    if ($('#animationSetting')) $('#animationSetting').checked = settings.animation_enabled;
+    if ($('#performanceBadge')) $('#performanceBadge').textContent = settings.performance_mode === 'eco' ? 'MODO ECONÔMICO' : 'MODO EQUILIBRADO';
     $('#wakeWordSetting').checked = Boolean(settings.require_wake_word);
     $('#voiceSetting').checked = settings.voice_enabled !== false;
     $('#rateSetting').value = settings.speech_rate;
@@ -180,6 +195,8 @@
     els.voice.setAttribute('aria-pressed', String(settings.voice_enabled !== false));
     $('#voiceLabel').textContent = settings.voice_enabled !== false ? 'Voz ativada' : 'Voz silenciada';
     els.voice.classList.toggle('muted', settings.voice_enabled === false);
+    if (previousPerformance !== settings.performance_mode) resizeCanvases();
+    if (previousAnimation !== settings.animation_enabled) coreDirty = true;
     refreshMicCaption();
     refreshState();
   }
@@ -213,7 +230,144 @@
       details.append(row);
     }
     if (socket?.readyState === WebSocket.OPEN) {
-      showNotice(status.models?.llm?.ready ? '' : 'O modelo de conversa ainda não está disponível. Os comandos locais e a memória podem ser usados agora.');
+      showNotice(status.models?.llm?.ready ? '' : 'Para conversar livremente, use “Ativar conversa local” e prepare a I.V.I. neste computador. Os comandos de aplicativos e a memória já podem ser usados.');
+    }
+    if ($('#setupStrip')) $('#setupStrip').hidden = Boolean(status.models?.llm?.ready);
+    const quickSetup = $('#setupQuickOpen');
+    if (quickSetup) {
+      const title = status.models?.llm?.ready ? 'Gerenciar modelos locais' : 'Ativar conversa local';
+      quickSetup.title = title;
+      quickSetup.setAttribute('aria-label', title);
+      if (quickSetup.querySelector('span')) quickSetup.querySelector('span').textContent = status.models?.llm?.ready ? 'Modelos locais' : 'Ativar conversa';
+    }
+  }
+
+  function stopSetupPolling() {
+    clearTimeout(setupTimer);
+    setupTimer = null;
+  }
+
+  function updateRuntimeHelp(message, failed) {
+    const help = $('#setupRuntimeHelp');
+    if (help) help.hidden = !(failed && /Microsoft\s+Visual\s+C\+\+|VC\+\+|VCRUNTIME|MSVCP\d+/i.test(String(message || '')));
+  }
+
+  function renderSetup(job) {
+    if (!job || !$('#setupStatus')) return;
+    setupState = job;
+    const running = job.state === 'running';
+    const blocked = running || setupBusy;
+    const canVoice = job.can_install_voice === true || job.components?.voice?.can_install === true;
+    const installReason = job.components?.conversation?.reason || job.reason;
+    const unavailable = job.state === 'idle' && job.can_install !== true;
+    $('#setupJob').hidden = job.state === 'idle' && !unavailable && !(job.log?.length);
+    $('#setupStatus').textContent = unavailable
+      ? installReason || 'A preparação automática não está disponível neste computador. Consulte os detalhes da configuração.'
+      : job.message || ({ idle: 'Escolha o que deseja preparar neste computador.', running: 'Preparação em andamento.', completed: 'Preparação encerrada. Verificando os modelos locais.', failed: 'A preparação não foi concluída. Consulte os detalhes abaixo.', cancelled: 'A preparação foi cancelada.' }[job.state] || 'Estado da preparação indisponível.');
+    $('#setupStatus').dataset.state = job.state || 'idle';
+    updateRuntimeHelp(job.message, job.state === 'failed');
+    $('#setupConversationButton').disabled = blocked || job.can_install !== true;
+    $('#setupVoiceButton').disabled = blocked || !canVoice;
+    if ($('#setupVoiceNote')) $('#setupVoiceNote').textContent = canVoice
+      ? 'O reconhecimento de fala e a voz são preparados neste computador; o download inicial usa a internet.'
+      : job.components?.voice?.reason || 'A preparação automática de voz ainda não está disponível neste instalador. Você pode continuar por texto.';
+    $('#setupCancelButton').hidden = !running;
+    $('#setupCancelButton').disabled = setupBusy;
+    const progress = Number.isFinite(job.progress) ? Math.max(0, Math.min(100, job.progress)) : null;
+    $('#setupProgress').hidden = progress === null;
+    $('#setupProgress').value = progress ?? 0;
+    if ($('#setupProgressLabel')) {
+      $('#setupProgressLabel').hidden = progress === null;
+      $('#setupProgressLabel').textContent = progress === null ? '' : Math.round(progress) + '%';
+    }
+    $('#setupDetails').textContent = (Array.isArray(job.log) ? job.log : []).slice(-100).map(line => typeof line === 'string' ? line : JSON.stringify(line)).join('\n');
+    $('#setupDetails').scrollTop = $('#setupDetails').scrollHeight;
+  }
+
+  function showSetupError(error) {
+    if (!$('#setupStatus')) return;
+    stopSetupPolling();
+    $('#setupJob').hidden = false;
+    const message = error.status === 404
+      ? 'Os arquivos novos estão prontos, mas o servidor antigo ainda está aberto. Feche-o com Ctrl+C e abra INICIAR-IVI.cmd novamente.'
+      : error.message || 'Não foi possível consultar a preparação local.';
+    $('#setupStatus').textContent = message;
+    $('#setupStatus').dataset.state = 'failed';
+    updateRuntimeHelp(message, true);
+    $('#setupProgress').hidden = true;
+    if ($('#setupProgressLabel')) $('#setupProgressLabel').hidden = true;
+    $('#setupCancelButton').hidden = setupState?.state !== 'running';
+    $('#setupCancelButton').disabled = false;
+    $('#setupConversationButton').disabled = setupState?.state === 'running' || setupState?.can_install !== true;
+    $('#setupVoiceButton').disabled = setupState?.state === 'running' || !(setupState?.can_install_voice === true || setupState?.components?.voice?.can_install === true);
+  }
+
+  function scheduleSetupPoll() {
+    stopSetupPolling();
+    if (!destroyed && !document.hidden && setupState?.state === 'running') setupTimer = setTimeout(() => void loadSetup(), 2000);
+  }
+
+  async function loadSetup() {
+    if (setupLoading || destroyed) return;
+    setupLoading = true;
+    if (!setupState && $('#setupConversationButton')) {
+      $('#setupConversationButton').disabled = true;
+      $('#setupVoiceButton').disabled = true;
+    }
+    const previousState = setupState?.state;
+    try {
+      const job = await api('/api/setup');
+      renderSetup(job);
+      if (previousState === 'running' && job.state !== 'running') {
+        updateStatus(await api('/api/status'));
+      }
+      scheduleSetupPoll();
+    } catch (error) { showSetupError(error); }
+    finally { setupLoading = false; }
+  }
+
+  async function openSetup() {
+    const dialog = $('#setupDialog');
+    if (!dialog) return;
+    if (!dialog.open) dialog.showModal();
+    await loadSetup();
+  }
+
+  async function startSetup(component) {
+    if (setupBusy || setupState?.state === 'running') return;
+    const allowed = component === 'voice'
+      ? setupState?.can_install_voice === true || setupState?.components?.voice?.can_install === true
+      : setupState?.can_install === true;
+    if (!allowed) return toast('Aguarde a verificação da preparação disponível neste computador.');
+    setupBusy = true;
+    let operationError = null;
+    if (setupState) renderSetup(setupState);
+    try {
+      const job = await api('/api/setup', { method: 'POST', body: JSON.stringify({ component }) });
+      renderSetup(job);
+      if (job.state === 'completed') updateStatus(await api('/api/status'));
+    } catch (error) { operationError = error; }
+    finally {
+      setupBusy = false;
+      if (operationError) showSetupError(operationError);
+      else { if (setupState) renderSetup(setupState); scheduleSetupPoll(); }
+    }
+  }
+
+  async function cancelSetup() {
+    if (setupBusy || setupState?.state !== 'running') return;
+    setupBusy = true;
+    let operationError = null;
+    stopSetupPolling();
+    renderSetup(setupState);
+    try {
+      renderSetup(await api('/api/setup', { method: 'DELETE' }));
+      updateStatus(await api('/api/status'));
+    } catch (error) { operationError = error; }
+    finally {
+      setupBusy = false;
+      if (operationError) showSetupError(operationError);
+      else { if (setupState) renderSetup(setupState); scheduleSetupPoll(); }
     }
   }
 
@@ -437,6 +591,7 @@
       if (epoch === audioEpoch) {
         audioPlaying = false;
         playbackLevel = 0;
+        waveDirty = true;
         refreshState();
       }
     }
@@ -451,6 +606,7 @@
     }
     audioPlaying = false;
     playbackLevel = 0;
+    waveDirty = true;
     refreshState();
   }
 
@@ -530,8 +686,10 @@
     const frame = new Float32Array(event.samples);
     const rms = Math.min(1, event.rms || 0);
     microphoneLevel = rms;
+    waveDirty = true;
     micHistory.push(rms);
     micHistory.shift();
+    scheduleAnimation();
     const duration = frame.length / session.context.sampleRate;
     if (!session.speech && !audioPlaying) session.noise = session.noise * 0.985 + Math.min(rms, 0.025) * 0.015;
     const threshold = Math.max(audioPlaying ? 0.045 : 0.012, Math.min(0.065, session.noise * (audioPlaying ? 4.5 : 3.2)));
@@ -560,7 +718,7 @@
     if (mic || micStarting) return;
     if (socket?.readyState !== WebSocket.OPEN) return toast('Aguarde a conexão com o servidor local antes de ativar o microfone.');
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) return toast('O microfone exige localhost ou HTTPS e um navegador compatível.');
-    if (appStatus?.models?.stt?.ready === false) return toast('Configure o modelo local de reconhecimento de fala antes de ativar o microfone. Veja as configurações.');
+    if (appStatus?.models?.stt?.ready === false) return toast('A escuta ainda não está pronta. Abra a configuração da I.V.I. para conferir a preparação de voz; você pode continuar por texto.');
     micStarting = true;
     els.mic.disabled = true;
     refreshMicCaption();
@@ -607,6 +765,7 @@
     mic = null;
     microphoneLevel = 0;
     micHistory.fill(0);
+    waveDirty = true;
     if (session) {
       session.processor.port.onmessage = null;
       session.input.disconnect();
@@ -719,6 +878,11 @@
   els.voice.addEventListener('click', () => void saveSettings({ voice_enabled: settings.voice_enabled === false }));
   els.interrupt.addEventListener('click', interrupt);
   $('#settingsOpen').addEventListener('click', () => $('#settingsDialog').showModal());
+  $('#setupOpen')?.addEventListener('click', () => void openSetup());
+  document.querySelectorAll('[data-setup-open]').forEach(button => button.addEventListener('click', () => void openSetup()));
+  $('#setupConversationButton')?.addEventListener('click', () => void startSetup('conversation'));
+  $('#setupVoiceButton')?.addEventListener('click', () => void startSetup('voice'));
+  $('#setupCancelButton')?.addEventListener('click', () => void cancelSetup());
   $('#memoryOpen').addEventListener('click', () => { $('#memoryDialog').showModal(); void loadMemory(); });
   document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => $('#' + button.dataset.close).close()));
   document.querySelectorAll('.panel-dialog:not(#toolDialog)').forEach(dialog => dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); }));
@@ -727,6 +891,8 @@
   $('#toolReject').addEventListener('click', () => confirmTool(false));
   $('#wakeWordSetting').addEventListener('change', event => void saveSettings({ require_wake_word: event.target.checked }));
   $('#voiceSetting').addEventListener('change', event => void saveSettings({ voice_enabled: event.target.checked }));
+  $('#performanceSetting')?.addEventListener('change', event => void saveSettings({ performance_mode: event.target.checked ? 'eco' : 'balanced' }));
+  $('#animationSetting')?.addEventListener('change', event => void saveSettings({ animation_enabled: event.target.checked }));
   $('#rateSetting').addEventListener('input', event => { $('#rateOutput').textContent = Number(event.target.value).toLocaleString('pt-BR', { minimumFractionDigits: 1 }) + '×'; });
   $('#rateSetting').addEventListener('change', event => void saveSettings({ speech_rate: Number(event.target.value) }));
   $('#memoryForm').addEventListener('submit', async event => {
@@ -758,296 +924,298 @@
   updateClock();
   const clockTimer = setInterval(updateClock, 15000);
 
-  // Canvas HUD: projected orbits, segmented rings and 112 sparse particles.
-  // All audio modulation comes from the microphone or actual playback analyser.
+  // Detailed neon artwork is rasterized only when its dimensions change.
+  // Runtime frames composite those local Canvas layers without shadows/filters.
   const core = $('#coreCanvas');
   const wave = $('#waveCanvas');
   const coreContext = core.getContext('2d');
   const waveContext = wave.getContext('2d');
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
-  const particles = Array.from({ length: 112 }, (_, index) => {
-    const y = 1 - (index / 111) * 2;
-    const radius = Math.sqrt(1 - y * y);
+  const particles = Array.from({ length: 32 }, (_, index) => {
+    const y = 1 - index / 31 * 2;
+    const r = Math.sqrt(1 - y * y);
     const angle = index * Math.PI * (3 - Math.sqrt(5));
-    return [Math.cos(angle) * radius, y, Math.sin(angle) * radius];
+    return [Math.cos(angle) * r, y, Math.sin(angle) * r];
   });
-  let dimensions = { width: 600, height: 430, waveWidth: 500, waveHeight: 32 };
-  let frameId = null;
+  let dimensions = { width: 0, height: 0, waveWidth: 0, waveHeight: 0, ratio: 1 };
+  let coreLayers = null;
+  let coreDirty = true;
+  let waveDirty = true;
+  let animationTimer = null;
+  let animationDue = 0;
   let lastFrame = 0;
+  let lastCoreLevel = -1;
   let phase = 0;
   const analyserValues = new Float32Array(128);
+  const tau = Math.PI * 2;
+
+  function cachedLayer(size, ratio, paint) {
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.ceil(size * ratio));
+    canvas.height = Math.max(1, Math.ceil(size * ratio));
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.translate(size / 2, size / 2);
+    paint(ctx, size * 0.435);
+    return canvas;
+  }
+
+  function buildCoreLayers(size, ratio) {
+    const key = size.toFixed(2) + '/' + ratio;
+    if (coreLayers?.key === key) return;
+    const arc = (ctx, r, start, end, color, width = 1, blur = 0) => {
+      ctx.beginPath(); ctx.arc(0, 0, r, start, end);
+      ctx.strokeStyle = color; ctx.lineWidth = width;
+      ctx.shadowBlur = blur; ctx.shadowColor = color;
+      ctx.stroke(); ctx.shadowBlur = 0;
+    };
+    const base = cachedLayer(size, ratio, (ctx, r) => {
+      const glow = ctx.createRadialGradient(0, 0, r * 0.08, 0, 0, r * 1.1);
+      glow.addColorStop(0, 'rgba(29,178,255,.24)');
+      glow.addColorStop(.48, 'rgba(0,109,196,.19)');
+      glow.addColorStop(.77, 'rgba(0,108,190,.08)');
+      glow.addColorStop(1, 'rgba(0,40,80,0)');
+      ctx.fillStyle = glow; ctx.fillRect(-size / 2, -size / 2, size, size);
+      // Fine registration lines, etched rings, dotted tracks and ticks.
+      ctx.strokeStyle = 'rgba(66,178,218,.2)'; ctx.lineWidth = .6;
+      ctx.setLineDash([2, 7]); ctx.beginPath();
+      ctx.moveTo(-r * 1.06, 0); ctx.lineTo(r * 1.06, 0);
+      ctx.moveTo(0, -r * 1.06); ctx.lineTo(0, r * 1.06); ctx.stroke(); ctx.setLineDash([]);
+      arc(ctx, r * 1.025, 0, tau, 'rgba(55,147,189,.45)', .7);
+      arc(ctx, r * .992, 0, tau, 'rgba(77,217,255,.23)', .7);
+      for (let group = 0; group < 2; group++) {
+        ctx.beginPath();
+        for (let i = group ? 0 : 1; i < 144; i += group ? 12 : 1) {
+          if (!group && i % 12 === 0) continue;
+          const a = i / 144 * tau;
+          const inner = r * (group ? 1.018 : 1.028);
+          const outer = r * (group ? 1.066 : 1.047);
+          ctx.moveTo(Math.cos(a) * inner, Math.sin(a) * inner);
+          ctx.lineTo(Math.cos(a) * outer, Math.sin(a) * outer);
+        }
+        ctx.strokeStyle = group ? 'rgba(119,232,255,.73)' : 'rgba(72,167,211,.36)';
+        ctx.lineWidth = group ? 1.3 : .65; ctx.stroke();
+      }
+      // Beveled blue iris bands: glow is paid once, never once per frame.
+      for (let i = 0; i < 12; i++) {
+        const a = i / 12 * tau + .035;
+        const b = a + tau / 12 - .09;
+        arc(ctx, r * .944, a, b, 'rgba(5,40,76,.96)', r * .052);
+        arc(ctx, r * .944, a + .008, b - .008, i % 3 ? 'rgba(13,139,228,.78)' : 'rgba(27,193,255,.93)', r * .022, 8);
+        arc(ctx, r * .967, a + .008, b - .008, 'rgba(111,237,255,.66)', .8);
+        arc(ctx, r * .916, a + .008, b - .008, 'rgba(5,66,121,.8)', 1.3);
+        arc(ctx, r * .853, a + .05, b - .015, 'rgba(22,111,179,.45)', r * .018);
+      }
+      for (const [scale, opacity] of [[.887,.48],[.796,.66],[.762,.42],[.705,.55],[.654,.35],[.6,.3],[.3,.4]]) {
+        arc(ctx, r * scale, 0, tau, 'rgba(54,187,241,' + opacity + ')', scale === .705 ? 1.2 : .65);
+      }
+      ctx.setLineDash([1, 5]);
+      arc(ctx, r * .817, 0, tau, 'rgba(108,229,255,.54)', 1.1);
+      arc(ctx, r * .575, 0, tau, 'rgba(52,166,218,.38)', .8); ctx.setLineDash([]);
+      // Static depth planes under the moving orbit highlights.
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath(); ctx.ellipse(0, 0, r * .665, r * (.24 + i * .04), i * 1.02, 0, tau);
+        ctx.strokeStyle = 'rgba(43,185,237,.24)'; ctx.lineWidth = .8; ctx.stroke();
+      }
+      // Circuit junctions and warm reference marks remain fixed.
+      for (let i = 0; i < 4; i++) {
+        const a = i / 4 * tau;
+        const x = Math.cos(a) * r * .725, y = Math.sin(a) * r * .725;
+        ctx.beginPath(); ctx.arc(x, y, 2, 0, tau);
+        ctx.fillStyle = '#b8fbff'; ctx.shadowColor = '#00bdff'; ctx.shadowBlur = 11; ctx.fill(); ctx.shadowBlur = 0;
+        ctx.beginPath(); ctx.moveTo(x - Math.cos(a) * 8, y - Math.sin(a) * 8); ctx.lineTo(x + Math.cos(a) * 8, y + Math.sin(a) * 8);
+        ctx.strokeStyle = 'rgba(117,239,255,.8)'; ctx.lineWidth = 1; ctx.stroke();
+      }
+      for (const side of [-1, 1]) {
+        ctx.beginPath();
+        for (let i = 0; i < 7; i++) {
+          const a = (side === 1 ? 0 : Math.PI) + (i - 3) * .027;
+          ctx.moveTo(Math.cos(a) * r * .978, Math.sin(a) * r * .978);
+          ctx.lineTo(Math.cos(a) * r * 1.011, Math.sin(a) * r * 1.011);
+        }
+        ctx.strokeStyle = 'rgba(243,192,78,.8)'; ctx.lineWidth = 1.5; ctx.stroke();
+      }
+    });
+    const sweep = cachedLayer(size, ratio, (ctx, r) => {
+      for (const [scale, start, length, opacity] of [[.889,-1.15,1.7,.95],[.889,2.2,.95,.72],[.784,.3,.85,.9],[.784,3.4,1,.75],[.652,1.8,.55,.8]]) {
+        arc(ctx, r * scale, start, start + length, 'rgba(76,217,255,' + opacity + ')', 1.4, 7);
+        arc(ctx, r * scale, start + .1, start + length - .1, 'rgba(178,251,255,.83)', .6);
+      }
+    });
+    const crystal = cachedLayer(size, ratio, (ctx, r) => {
+      const halo = ctx.createRadialGradient(0, 0, r*.1, 0, 0, r*.5);
+      halo.addColorStop(0, 'rgba(42,207,255,.38)');
+      halo.addColorStop(.45, 'rgba(0,132,239,.2)');
+      halo.addColorStop(.78, 'rgba(0,93,181,.08)'); halo.addColorStop(1, 'rgba(0,40,100,0)');
+      ctx.fillStyle = halo; ctx.fillRect(-r*.52,-r*.52,r*1.04,r*1.04);
+      // An inset blue optical chamber adds depth behind the suspended prism.
+      const chamber = ctx.createRadialGradient(-r*.1,-r*.14,r*.03,0,0,r*.355);
+      chamber.addColorStop(0,'rgba(40,146,231,.3)');
+      chamber.addColorStop(.46,'rgba(3,41,94,.5)');
+      chamber.addColorStop(.82,'rgba(0,13,40,.69)');
+      chamber.addColorStop(1,'rgba(4,117,196,.1)');
+      ctx.beginPath();ctx.arc(0,0,r*.355,0,tau);ctx.fillStyle=chamber;ctx.fill();
+      arc(ctx,r*.355,0,tau,'rgba(37,169,230,.38)',.7);
+      arc(ctx,r*.335,3.6,5.3,'rgba(132,236,255,.56)',.8,5);
+      // The energy spine, glow and speculars below are also cached artwork.
+      const beam=ctx.createLinearGradient(-r*.025,0,r*.025,0);
+      beam.addColorStop(0,'rgba(0,135,255,0)');beam.addColorStop(.4,'rgba(28,197,255,.2)');
+      beam.addColorStop(.5,'rgba(208,255,255,.68)');beam.addColorStop(.6,'rgba(28,197,255,.2)');beam.addColorStop(1,'rgba(0,135,255,0)');
+      ctx.fillStyle=beam;ctx.fillRect(-r*.025,-r*.785,r*.05,r*1.57);
+      const h=r*.295,w=r*.155;
+      const top=[-w*.08,-h],upperLeft=[-w*.63,-h*.3],left=[-w,0],lowerLeft=[-w*.57,h*.39];
+      const bottom=[w*.12,h],lowerRight=[w*.65,h*.33],right=[w,0],upperRight=[w*.59,-h*.34];
+      const ridge=[w*.12,-h*.055],innerTop=[w*.04,-h*.66],innerLeft=[-w*.42,h*.035],innerRight=[w*.49,-h*.025],innerBottom=[w*.025,h*.63];
+      const polygon=points=>{ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(...p):ctx.moveTo(...p));ctx.closePath();};
+      const facet=(points,light,dark,from=[-w,-h],to=[w,h])=>{
+        const gradient=ctx.createLinearGradient(...from,...to);gradient.addColorStop(0,light);gradient.addColorStop(1,dark);
+        polygon(points);ctx.fillStyle=gradient;ctx.fill();ctx.strokeStyle='rgba(130,239,255,.3)';ctx.lineWidth=.55;ctx.stroke();
+      };
+      const hull=[top,upperRight,right,lowerRight,bottom,lowerLeft,left,upperLeft];
+      facet(hull,'rgba(33,164,231,.85)','rgba(0,34,107,.96)');
+      // Wide lit face, narrow bevels and dark reverse faces make a solid volume.
+      facet([top,upperRight,ridge,upperLeft],'rgba(232,255,255,.96)','rgba(20,137,215,.65)',top,ridge);
+      facet([upperLeft,left,ridge],'rgba(51,211,255,.82)','rgba(0,61,141,.88)',upperLeft,left);
+      facet([upperRight,right,ridge],'rgba(246,255,255,.98)','rgba(64,206,250,.7)',upperRight,ridge);
+      facet([left,lowerLeft,bottom,ridge],'rgba(0,120,208,.93)','rgba(0,26,91,.92)',ridge,bottom);
+      facet([right,lowerRight,bottom,ridge],'rgba(187,253,255,.92)','rgba(0,136,230,.76)',right,bottom);
+      facet([top,upperLeft,innerTop],'rgba(255,255,255,.96)','rgba(95,232,255,.2)',top,innerTop);
+      facet([top,upperRight,innerTop],'rgba(220,253,255,.8)','rgba(3,99,185,.58)',top,upperRight);
+      facet([lowerRight,bottom,innerBottom],'rgba(91,234,255,.82)','rgba(0,62,168,.56)',lowerRight,bottom);
+      facet([left,lowerLeft,innerBottom,innerLeft],'rgba(10,184,250,.42)','rgba(2,65,156,.66)',left,innerBottom);
+      // Internal refraction planes remain translucent instead of flat fills.
+      facet([innerTop,innerRight,innerBottom,innerLeft],'rgba(222,255,255,.33)','rgba(0,111,216,.18)',innerTop,innerBottom);
+      facet([upperLeft,right,innerBottom],'rgba(228,255,255,.19)','rgba(29,141,241,.04)',upperLeft,innerBottom);
+      facet([top,ridge,bottom,innerLeft],'rgba(117,244,255,.12)','rgba(0,50,157,.25)',top,bottom);
+      polygon(hull);ctx.strokeStyle='rgba(181,254,255,.92)';ctx.lineWidth=.9;ctx.shadowBlur=13;ctx.shadowColor='#0dcaff';ctx.stroke();ctx.shadowBlur=0;
+      ctx.beginPath();ctx.moveTo(...top);ctx.lineTo(...ridge);ctx.lineTo(...bottom);
+      ctx.moveTo(...left);ctx.lineTo(...ridge);ctx.lineTo(...right);
+      ctx.strokeStyle='rgba(222,255,255,.72)';ctx.lineWidth=.6;ctx.stroke();
+      // A white-cyan optical glare sits on a bevel, not at the flat center.
+      const flareX=-w*.2,flareY=-h*.41;
+      const flare=ctx.createRadialGradient(flareX,flareY,0,flareX,flareY,r*.115);
+      flare.addColorStop(0,'rgba(255,255,255,.98)');flare.addColorStop(.12,'rgba(224,255,255,.82)');flare.addColorStop(.35,'rgba(64,215,255,.18)');flare.addColorStop(1,'rgba(15,155,255,0)');
+      ctx.fillStyle=flare;ctx.fillRect(flareX-r*.12,flareY-r*.12,r*.24,r*.24);
+      const streak=ctx.createLinearGradient(-r*.28,flareY,r*.28,flareY);
+      streak.addColorStop(0,'rgba(88,224,255,0)');streak.addColorStop(.46,'rgba(147,245,255,.26)');streak.addColorStop(.5,'rgba(255,255,255,.94)');streak.addColorStop(.54,'rgba(147,245,255,.26)');streak.addColorStop(1,'rgba(88,224,255,0)');
+      ctx.fillStyle=streak;ctx.fillRect(-r*.28,flareY-.45,r*.56,.9);
+      ctx.beginPath();ctx.moveTo(flareX,flareY-r*.047);ctx.lineTo(flareX,flareY+r*.047);
+      ctx.strokeStyle='rgba(229,255,255,.88)';ctx.lineWidth=.7;ctx.stroke();
+      ctx.beginPath();ctx.arc(right[0]*.72,-h*.075,.85,0,tau);ctx.fillStyle='#eeffff';ctx.fill();
+    });
+    coreLayers = { key, size, base, sweep, crystal };
+    coreDirty = true;
+  }
 
   function resizeCanvases() {
-    const ratio = Math.min(window.devicePixelRatio || 1, 1.5);
-    const bounds = core.getBoundingClientRect();
-    const waveBounds = wave.getBoundingClientRect();
-    dimensions = { width: bounds.width, height: bounds.height, waveWidth: waveBounds.width, waveHeight: waveBounds.height };
-    for (const [canvas, context, width, height] of [[core, coreContext, bounds.width, bounds.height], [wave, waveContext, waveBounds.width, waveBounds.height]]) {
-      const nextWidth = Math.max(1, Math.round(width * ratio));
-      const nextHeight = Math.max(1, Math.round(height * ratio));
-      if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
-        canvas.width = nextWidth;
-        canvas.height = nextHeight;
-        context.setTransform(ratio, 0, 0, ratio, 0, 0);
-      }
+    const ratio = Math.min(window.devicePixelRatio || 1, settings.performance_mode === 'balanced' ? 1.25 : 1);
+    const bounds = core.getBoundingClientRect(), waveBounds = wave.getBoundingClientRect();
+    const changed = dimensions.width !== bounds.width || dimensions.height !== bounds.height || dimensions.ratio !== ratio;
+    dimensions = { width: bounds.width, height: bounds.height, waveWidth: waveBounds.width, waveHeight: waveBounds.height, ratio };
+    for (const [canvas, ctx, width, height] of [[core,coreContext,bounds.width,bounds.height],[wave,waveContext,waveBounds.width,waveBounds.height]]) {
+      const nextWidth = Math.max(1, Math.round(width * ratio)), nextHeight = Math.max(1, Math.round(height * ratio));
+      if (canvas.width !== nextWidth || canvas.height !== nextHeight) { canvas.width = nextWidth; canvas.height = nextHeight; }
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     }
-    // Resizing clears a Canvas; paint synchronously instead of leaving a blank
-    // frame while a dialog or full-page capture changes viewport dimensions.
-    drawCore(Math.min(1, Math.max(microphoneLevel, playbackLevel) * 7));
-    drawWave();
+    if (bounds.width > 0 && bounds.height > 0 && changed) buildCoreLayers(Math.min(bounds.width, bounds.height), ratio);
+    coreDirty = true; waveDirty = true;
+    renderFrame(performance.now(), false);
+    scheduleAnimation();
   }
   const resizeObserver = new ResizeObserver(resizeCanvases);
-  resizeObserver.observe(core);
-  resizeObserver.observe(wave);
-
-  function projected(point, radius, rotation) {
-    const [x, y, z] = point;
-    const rx = x * Math.cos(rotation) + z * Math.sin(rotation);
-    const rz = -x * Math.sin(rotation) + z * Math.cos(rotation);
-    const ry = y * Math.cos(0.4) - rz * Math.sin(0.4);
-    const depth = y * Math.sin(0.4) + rz * Math.cos(0.4);
-    const scale = 2.8 / (2.8 + depth * 0.36);
-    return [rx * radius * scale, ry * radius * scale, depth];
-  }
+  resizeObserver.observe(core); resizeObserver.observe(wave);
 
   function drawCore(level) {
     const { width, height } = dimensions;
-    const ctx = coreContext;
+    if (width < 1 || height < 1 || !coreLayers) return;
+    const ctx = coreContext, size = coreLayers.size, r = size * .435;
     ctx.clearRect(0, 0, width, height);
-    if (width < 1 || height < 1) return;
-    const cx = width / 2;
-    const cy = height / 2;
-    const radius = Math.min(width, height) * 0.435 * (1 + level * 0.018);
-    const tau = Math.PI * 2;
-    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 1.12);
-    glow.addColorStop(0, 'rgba(15,140,218,' + (0.18 + level * 0.2) + ')');
-    glow.addColorStop(0.48, 'rgba(0,100,175,0.13)');
-    glow.addColorStop(0.78, 'rgba(0,96,173,0.06)');
-    glow.addColorStop(1, 'rgba(0,50,100,0)');
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, width, height);
-    ctx.save();
-    ctx.translate(cx, cy);
-
-    const arc = (r, start, end, color, lineWidth = 1, blur = 0) => {
-      ctx.beginPath();
-      ctx.arc(0, 0, r, start, end);
-      ctx.strokeStyle = color;
-      ctx.lineWidth = lineWidth;
-      ctx.shadowBlur = blur;
-      ctx.shadowColor = color;
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-    };
-    ctx.lineCap = 'butt';
-
-    // Fine axes and the outer instrument bezel stay geometrically stable.
-    ctx.strokeStyle = 'rgba(52,162,204,0.13)';
-    ctx.lineWidth = 0.7;
-    ctx.setLineDash([2, 7]);
-    ctx.beginPath();
-    ctx.moveTo(-radius * 1.07, 0); ctx.lineTo(radius * 1.07, 0);
-    ctx.moveTo(0, -radius * 1.07); ctx.lineTo(0, radius * 1.07);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    arc(radius * 1.015, 0, tau, 'rgba(36,124,172,0.3)', 0.7);
-    arc(radius * 0.982, 0, tau, 'rgba(70,184,224,0.15)', 0.7);
-    for (let index = 0; index < 120; index++) {
-      const angle = index / 120 * tau;
-      const major = index % 10 === 0;
-      const inner = radius * (major ? 1.015 : 1.025);
-      const outer = radius * (major ? 1.057 : 1.041);
-      ctx.beginPath();
-      ctx.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner);
-      ctx.lineTo(Math.cos(angle) * outer, Math.sin(angle) * outer);
-      ctx.strokeStyle = major ? 'rgba(100,221,247,0.55)' : 'rgba(58,146,183,0.24)';
-      ctx.lineWidth = major ? 1.3 : 0.7;
-      ctx.stroke();
+    ctx.save(); ctx.translate(width / 2, height / 2);
+    ctx.drawImage(coreLayers.base, -size/2, -size/2, size, size);
+    ctx.save(); ctx.rotate(phase * .35); ctx.globalAlpha = .88 + level * .12;
+    ctx.drawImage(coreLayers.sweep, -size/2, -size/2, size, size); ctx.restore();
+    // Two inexpensive moving planes; all soft halo work is already cached.
+    for (let i = 0; i < 2; i++) {
+      ctx.beginPath(); ctx.ellipse(0, 0, r * (.66 + level * .012), r * .245, phase * (i ? -.15 : .18) + i * 1.25, .15, Math.PI + .9);
+      ctx.strokeStyle = i ? 'rgba(42,177,248,.7)' : 'rgba(129,239,255,.82)'; ctx.lineWidth = 1; ctx.stroke();
     }
-
-    // Broad broken bands echo a mechanical iris without using heavy assets.
-    for (let index = 0; index < 8; index++) {
-      const start = index / 8 * tau + 0.045 + phase * 0.045;
-      const end = start + tau / 8 - 0.13;
-      arc(radius * 0.94, start, end, 'rgba(13,63,100,0.8)', radius * 0.036);
-      if (index % 3 !== 1) {
-        arc(radius * 0.94, start + 0.015, end - 0.015, 'rgba(20,154,241,' + (0.58 + level * 0.22) + ')', radius * 0.019, 6);
-        arc(radius * 0.958, start + 0.015, end - 0.015, 'rgba(82,222,255,0.55)', 0.9);
-      }
-      const innerStart = index / 8 * tau - phase * 0.065;
-      arc(radius * 0.848, innerStart, innerStart + 0.58, 'rgba(22,125,196,0.28)', radius * 0.025);
+    const rotation = phase * .16, cos = Math.cos(rotation), sin = Math.sin(rotation);
+    for (const [x,y,z] of particles) {
+      const px = x * cos + z * sin, depth = -x * sin + z * cos;
+      ctx.fillStyle = 'rgba(131,228,255,' + (.18 + (1-depth)*.24) + ')';
+      ctx.fillRect(px * r * .55, y * r * .55, 1 + level * .3, 1 + level * .3);
     }
-    arc(radius * 0.89, 0, tau, 'rgba(51,139,195,0.22)', 0.8);
-    arc(radius * 0.887, phase * 0.22 - 0.9, phase * 0.22 + 0.48, 'rgba(55,199,255,0.85)', 1.5, 7);
-    arc(radius * 0.887, phase * 0.22 + Math.PI - 0.9, phase * 0.22 + Math.PI + 0.48, 'rgba(17,131,245,0.65)', 1.5, 5);
-
-    const rings = [0.785, 0.756, 0.706, 0.655, 0.61];
-    for (let index = 0; index < rings.length; index++) {
-      const r = radius * rings[index];
-      const color = index % 2 ? 'rgba(66,202,242,0.38)' : 'rgba(31,135,211,0.4)';
-      arc(r, 0, tau, color, index === 2 ? 1.35 : 0.65);
-      if (index % 2 === 0) {
-        const rotation = phase * (index % 4 ? -0.17 : 0.14) + index * 0.9;
-        arc(r, rotation, rotation + 0.75, 'rgba(104,239,255,' + (0.6 + level * 0.2) + ')', 1.35, 5);
-        arc(r, rotation + Math.PI, rotation + Math.PI + 0.75, 'rgba(20,161,253,0.72)', 1.2, 5);
-      }
-    }
-    ctx.setLineDash([1, 6]);
-    arc(radius * 0.813, -phase * 0.08, tau - phase * 0.08, 'rgba(74,202,231,0.45)', 1.2);
-    arc(radius * 0.574, phase * 0.1, tau + phase * 0.1, 'rgba(67,176,213,0.32)', 0.8);
-    ctx.setLineDash([]);
-
-    // Four projected orbital planes, with brighter near-side arcs.
-    for (let ring = 0; ring < 4; ring++) {
-      const orbit = [];
-      const tilt = 0.35 + ring * 0.68;
-      const rotation = phase * (ring % 2 ? -0.13 : 0.15) + ring * 0.74;
-      for (let step = 0; step <= 72; step++) {
-        const angle = step / 72 * tau;
-        orbit.push(projected([Math.cos(angle), Math.sin(angle) * Math.cos(tilt), Math.sin(angle) * Math.sin(tilt)], radius * (0.65 + level * 0.025), rotation));
-      }
-      ctx.beginPath();
-      orbit.forEach(([x, y], step) => {
-        if (step === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-      });
-      ctx.strokeStyle = 'rgba(42,182,236,0.25)';
-      ctx.lineWidth = 0.85;
-      ctx.stroke();
-      ctx.beginPath();
-      let connected = false;
-      for (const [x, y, depth] of orbit) {
-        if (depth < 0) {
-          if (connected) ctx.lineTo(x, y); else ctx.moveTo(x, y);
-          connected = true;
-        } else connected = false;
-      }
-      ctx.strokeStyle = 'rgba(83,224,255,' + (0.58 + level * 0.25) + ')';
-      ctx.lineWidth = 1.1;
-      ctx.shadowColor = '#13c6ff';
-      ctx.shadowBlur = 4 + level * 5;
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-    }
-    const points = particles.map((point, index) => {
-      const motion = 1 + Math.sin(phase * 0.9 + index * 0.28) * (0.015 + level * 0.045);
-      return projected(point, radius * 0.56 * motion, phase * 0.12);
-    }).sort((a, b) => b[2] - a[2]);
-    for (const [x, y, depth] of points) {
-      const front = (1 - depth) / 2;
-      ctx.beginPath();
-      ctx.arc(x, y, 0.45 + front * 0.8 + level * 0.25, 0, tau);
-      ctx.fillStyle = 'rgba(92,216,255,' + (0.1 + front * 0.62) + ')';
-      ctx.fill();
-    }
-
-    // Cardinal light nodes and short registration brackets.
-    for (let index = 0; index < 4; index++) {
-      const angle = index / 4 * tau;
-      const x = Math.cos(angle) * radius * 0.72;
-      const y = Math.sin(angle) * radius * 0.72;
-      ctx.beginPath(); ctx.arc(x, y, 1.5 + level, 0, tau);
-      ctx.fillStyle = '#93f3ff';
-      ctx.shadowColor = '#1ebfff'; ctx.shadowBlur = 9 + level * 6; ctx.fill(); ctx.shadowBlur = 0;
-      ctx.beginPath();
-      ctx.moveTo(x - Math.cos(angle) * 8, y - Math.sin(angle) * 8);
-      ctx.lineTo(x + Math.cos(angle) * 8, y + Math.sin(angle) * 8);
-      ctx.strokeStyle = 'rgba(92,224,255,0.75)'; ctx.lineWidth = 1; ctx.stroke();
-    }
-    for (let side = -1; side <= 1; side += 2) {
-      for (let index = 0; index < 6; index++) {
-        const angle = (side === 1 ? 0 : Math.PI) + (index - 2.5) * 0.027;
-        ctx.beginPath();
-        ctx.moveTo(Math.cos(angle) * radius * 0.97, Math.sin(angle) * radius * 0.97);
-        ctx.lineTo(Math.cos(angle) * radius * 1.005, Math.sin(angle) * radius * 1.005);
-        ctx.strokeStyle = 'rgba(231,182,70,0.64)'; ctx.lineWidth = 1.6; ctx.stroke();
-      }
-    }
-
-    // Faceted luminous diamond: a distinctive center, not a particle sphere.
-    const pulse = 1 + level * 0.12;
-    const diamondHeight = radius * 0.195 * pulse;
-    const diamondWidth = radius * 0.092 * pulse;
-    const coreGlow = ctx.createRadialGradient(0, 0, 0, 0, 0, radius * 0.37);
-    coreGlow.addColorStop(0, 'rgba(60,228,255,' + (0.28 + level * 0.3) + ')');
-    coreGlow.addColorStop(0.4, 'rgba(5,158,238,0.14)');
-    coreGlow.addColorStop(1, 'rgba(0,127,230,0)');
-    ctx.fillStyle = coreGlow; ctx.fillRect(-radius * 0.4, -radius * 0.4, radius * 0.8, radius * 0.8);
-    ctx.beginPath(); ctx.moveTo(0, -radius * 0.8); ctx.lineTo(0, radius * 0.8);
-    ctx.strokeStyle = 'rgba(77,218,255,' + (0.12 + level * 0.15) + ')'; ctx.lineWidth = 0.8; ctx.stroke();
-    const facets = [
-      [[0, -diamondHeight], [diamondWidth, 0], [0, 0], 'rgba(126,245,255,0.8)'],
-      [[0, -diamondHeight], [-diamondWidth, 0], [0, 0], 'rgba(16,173,237,0.65)'],
-      [[0, diamondHeight], [diamondWidth, 0], [0, 0], 'rgba(30,190,249,0.7)'],
-      [[0, diamondHeight], [-diamondWidth, 0], [0, 0], 'rgba(5,112,198,0.55)'],
-    ];
-    for (const [a, b, c, color] of facets) {
-      ctx.beginPath(); ctx.moveTo(...a); ctx.lineTo(...b); ctx.lineTo(...c); ctx.closePath(); ctx.fillStyle = color; ctx.fill();
-    }
-    ctx.beginPath();
-    ctx.moveTo(0, -diamondHeight); ctx.lineTo(diamondWidth, 0); ctx.lineTo(0, diamondHeight); ctx.lineTo(-diamondWidth, 0); ctx.closePath();
-    ctx.moveTo(0, -diamondHeight); ctx.lineTo(0, diamondHeight);
-    ctx.moveTo(-diamondWidth, 0); ctx.lineTo(diamondWidth, 0);
-    ctx.strokeStyle = 'rgba(168,255,255,0.95)'; ctx.lineWidth = 1;
-    ctx.shadowBlur = 12 + level * 8; ctx.shadowColor = '#13c9ff'; ctx.stroke(); ctx.shadowBlur = 0;
-    arc(radius * 0.285, 0, tau, 'rgba(64,188,231,0.36)', 0.65);
-    arc(radius * 0.31, -phase * 0.2, -phase * 0.2 + 1.1, 'rgba(111,239,255,0.65)', 1);
+    const pulse = 1 + level * .075;
+    ctx.globalAlpha = .87 + level * .13;
+    ctx.drawImage(coreLayers.crystal, -size*pulse/2, -size*pulse/2, size*pulse, size*pulse);
     ctx.restore();
+    lastCoreLevel = level; coreDirty = false;
   }
 
   function drawWave() {
-    const ctx = waveContext;
     const { waveWidth: width, waveHeight: height } = dimensions;
+    if (width < 1 || height < 1) return;
+    const ctx = waveContext;
     ctx.clearRect(0, 0, width, height);
-    const count = 56;
-    const gap = Math.min(7, width / count);
-    const start = (width - gap * count) / 2;
-    ctx.lineCap = 'round';
-    ctx.lineWidth = 2;
-    for (let index = 0; index < count; index++) {
-      const value = audioPlaying ? Math.abs(analyserValues[Math.floor(index / count * analyserValues.length)] || 0) : micHistory[Math.floor(index / count * micHistory.length)] || 0;
-      const size = Math.min(height * 0.8, Math.max(1, value * height * (audioPlaying ? 3.5 : 8)));
-      const x = start + index * gap;
-      ctx.beginPath();
-      ctx.moveTo(x, (height - size) / 2);
-      ctx.lineTo(x, (height + size) / 2);
-      ctx.strokeStyle = value > 0.01 ? 'rgba(99,215,238,0.78)' : 'rgba(100,143,165,0.25)';
-      ctx.stroke();
+    const count = 48, gap = Math.min(7, width / count), start = (width - gap * count) / 2;
+    ctx.lineCap = 'round'; ctx.lineWidth = 1.6;
+    for (let i = 0; i < count; i++) {
+      const value = audioPlaying ? Math.abs(analyserValues[Math.floor(i/count*analyserValues.length)] || 0) : micHistory[Math.floor(i/count*micHistory.length)] || 0;
+      const heightUsed = Math.min(height * .8, Math.max(1, value * height * (audioPlaying ? 3.5 : 8)));
+      const x = start + i * gap;
+      ctx.beginPath(); ctx.moveTo(x, (height-heightUsed)/2); ctx.lineTo(x, (height+heightUsed)/2);
+      ctx.strokeStyle = value > .01 ? 'rgba(115,237,255,.9)' : 'rgba(83,163,188,.32)'; ctx.stroke();
     }
+    waveDirty = false;
+  }
+
+  function renderPolicy() {
+    const visible = dimensions.width > 0 && dimensions.height > 0 || dimensions.waveWidth > 0 && dimensions.waveHeight > 0;
+    const signal = audioPlaying || Boolean(mic && microphoneLevel > .008);
+    const ornamental = settings.animation_enabled !== false && !reducedMotion.matches;
+    return { run: visible && (ornamental || signal || Boolean(mic && waveDirty)), interval: 1000 / (signal ? (settings.performance_mode === 'balanced' ? 20 : 12) : (settings.performance_mode === 'balanced' ? 8 : 5)), ornamental };
+  }
+
+  function renderFrame(time, advance = true) {
+    if (document.hidden || destroyed) return;
+    if (analyser && audioPlaying) {
+      analyser.getFloatTimeDomainData(analyserValues);
+      let sum = 0; for (const value of analyserValues) sum += value * value;
+      playbackLevel = Math.sqrt(sum / analyserValues.length);
+    } else { analyserValues.fill(0); playbackLevel = 0; }
+    const policy = renderPolicy();
+    const elapsed = lastFrame ? Math.min(time-lastFrame, 300) : 0;
+    if (advance && policy.ornamental) phase += elapsed * (serverState === 'thinking' ? .00024 : .0002);
+    const level = settings.animation_enabled === false ? 0 : Math.min(1, Math.max(microphoneLevel, playbackLevel) * 7);
+    if (coreDirty || (advance && policy.ornamental) || Math.abs(level-lastCoreLevel) > .002) drawCore(level);
+    if (waveDirty || mic || audioPlaying) drawWave();
+    lastFrame = time;
+  }
+
+  function pauseAnimation() {
+    clearTimeout(animationTimer); animationTimer = null; animationDue = 0;
   }
 
   function scheduleAnimation() {
-    if (!destroyed && !document.hidden && frameId === null) frameId = requestAnimationFrame(animate);
+    if (destroyed || document.hidden) { pauseAnimation(); return; }
+    const policy = renderPolicy();
+    if (!policy.run) { pauseAnimation(); renderFrame(performance.now(), false); return; }
+    const now = performance.now(), delay = Math.max(0, policy.interval - (now-lastFrame));
+    const due = now + delay;
+    if (animationTimer !== null && animationDue <= due + 1) return;
+    pauseAnimation(); animationDue = due;
+    animationTimer = setTimeout(() => {
+      animationTimer = null; animationDue = 0;
+      renderFrame(performance.now()); scheduleAnimation();
+    }, delay);
   }
 
-  function animate(time) {
-    frameId = null;
-    if (destroyed || document.hidden) return;
-    const interval = reducedMotion.matches ? 125 : 1000 / 30;
-    if ((reducedMotion.matches && !mic && !audioPlaying) || time - lastFrame >= interval) {
-      const elapsed = Math.min(time - lastFrame, 100);
-      lastFrame = time - (time - lastFrame) % interval;
-      if (analyser && audioPlaying) {
-        analyser.getFloatTimeDomainData(analyserValues);
-        let sum = 0;
-        for (const value of analyserValues) sum += value * value;
-        playbackLevel = Math.sqrt(sum / analyserValues.length);
-      } else analyserValues.fill(0);
-      const level = Math.min(1, Math.max(microphoneLevel, playbackLevel) * 7);
-      if (!reducedMotion.matches) phase += elapsed * (serverState === 'thinking' ? 0.00038 : 0.00028);
-      drawCore(level);
-      drawWave();
-    }
-    // Reduced motion freezes all ornamental rotation and sleeps completely
-    // when idle; live microphone/playback levels still update at eight FPS.
-    if (!reducedMotion.matches || mic || audioPlaying) scheduleAnimation();
-  }
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { cancelAnimationFrame(frameId); frameId = null; }
-    else { lastFrame = 0; scheduleAnimation(); }
+    if (document.hidden) { pauseAnimation(); stopSetupPolling(); }
+    else { lastFrame = 0; coreDirty = true; waveDirty = true; renderFrame(performance.now(), false); scheduleAnimation(); scheduleSetupPoll(); }
   });
-  reducedMotion.addEventListener('change', () => { lastFrame = 0; scheduleAnimation(); });
+  reducedMotion.addEventListener('change', () => { coreDirty = true; pauseAnimation(); renderFrame(performance.now(), false); scheduleAnimation(); });
   resizeCanvases();
-  scheduleAnimation();
 
   async function initialize() {
     const results = await Promise.allSettled([api('/api/status'), api('/api/history')]);
@@ -1069,7 +1237,8 @@
     clearTimeout(reconnectTimer);
     clearInterval(clockTimer);
     clearInterval(statusTimer);
-    cancelAnimationFrame(frameId);
+    pauseAnimation();
+    stopSetupPolling();
     resizeObserver.disconnect();
     stopMicrophone();
     stopPlayback();

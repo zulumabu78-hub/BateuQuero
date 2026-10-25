@@ -9,7 +9,7 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="stylesheet" href="/static/style.css">
 </head>
-<body data-state="idle" data-view="core">
+<body data-state="idle" data-view="core" data-performance="eco" data-animation="on">
   <div class="boot-screen" id="bootScreen" aria-hidden="true">
     <span class="boot-orbit"></span><strong>I.V.I.</strong><span>INICIANDO INTERFACE</span>
   </div>
@@ -36,7 +36,7 @@
   <header class="topbar">
     <a class="brand" href="/" aria-label="I.V.I., início"><strong>I.V.I.</strong><span>INTELIGÊNCIA<br>VIRTUAL<br>INDEPENDENTE</span></a>
     <div class="computer-label"><svg><use href="#i-screen"/></svg><span>NESTE COMPUTADOR</span></div>
-    <div class="topbar-status"><div class="connection-pill" id="connectionPill"><span class="status-dot"></span><span id="connectionLabel">Conectando</span></div><span class="platform-label" id="platformLabel">LOCAL</span><time id="clock"></time><button id="fullscreenButton" class="icon-button fullscreen-button" title="Entrar em tela cheia" aria-label="Entrar em tela cheia"><svg><use href="#i-expand"/></svg></button></div>
+    <div class="topbar-status"><button type="button" class="setup-quick-button" id="setupQuickOpen" data-setup-open title="Ativar conversa local" aria-label="Ativar conversa local"><svg><use href="#i-core"/></svg><span>Ativar conversa</span></button><div class="connection-pill" id="connectionPill"><span class="status-dot"></span><span id="connectionLabel">Conectando</span></div><span class="platform-label" id="platformLabel">LOCAL</span><time id="clock"></time><button id="fullscreenButton" class="icon-button fullscreen-button" title="Entrar em tela cheia" aria-label="Entrar em tela cheia"><svg><use href="#i-expand"/></svg></button></div>
     <nav class="view-tabs" aria-label="Painéis da I.V.I."><button type="button" data-view="core" aria-pressed="true"><svg><use href="#i-core"/></svg>Núcleo</button><button type="button" data-view="conversation" aria-pressed="false"><svg><use href="#i-document"/></svg>Conversa</button><button type="button" data-view="system" aria-pressed="false"><svg><use href="#i-cpu"/></svg>Sistema</button></nav>
   </header>
 
@@ -60,19 +60,21 @@
         <div class="core-edge edge-left" aria-hidden="true"></div><div class="core-edge edge-right" aria-hidden="true"></div>
         <div class="core-legend legend-left" aria-hidden="true"><span>ESCUTA</span><span>INTERPRETA</span><span>RESPONDE</span><span>EXECUTA</span><i></i></div>
         <div class="core-legend legend-right" aria-hidden="true"><span>LOCAL</span><span>PRIVADO</span><span>SEMPRE SEU</span><i></i></div>
+        <svg class="core-circuit" viewBox="0 0 800 600" preserveAspectRatio="none" aria-hidden="true"><g class="circuit-traces"><path d="M14 208V118l37-37h123M14 392v90l37 37h123M786 208V118l-37-37H626M786 392v90l-37 37H626"/><path d="M40 176v-45l28-28h82M40 424v45l28 28h82M760 176v-45l-28-28h-82M760 424v45l-28 28h-82"/><path d="M174 20h106l18 18h45M626 20H520l-18 18h-45M174 580h106l18-18h45M626 580H520l-18-18h-45"/><path d="M3 265v70M797 265v70M356 9h88M356 591h88"/></g><g class="circuit-nodes"><circle cx="14" cy="208" r="2.3"/><circle cx="14" cy="392" r="2.3"/><circle cx="786" cy="208" r="2.3"/><circle cx="786" cy="392" r="2.3"/><circle cx="400" cy="9" r="2.2"/><circle cx="400" cy="591" r="2.2"/></g></svg>
         <span class="core-coordinate" id="coreMode">EM ESPERA</span>
         <canvas id="coreCanvas" aria-label="Núcleo orbital animado da I.V.I."></canvas>
         <div class="core-crosshair crosshair-top" aria-hidden="true"></div><div class="core-crosshair crosshair-bottom" aria-hidden="true"></div>
       </div>
-      <div class="presence-caption"><div class="state-indicator"><span></span><p id="stateLabel">Em espera</p></div><p class="state-description" id="stateDescription">Ative o microfone ou escreva um pedido.</p></div>
+      <div class="presence-caption"><span class="performance-badge" id="performanceBadge">MODO ECONÔMICO</span><div class="state-indicator"><span></span><p id="stateLabel">Em espera</p></div><p class="state-description" id="stateDescription">Ative o microfone ou escreva um pedido.</p></div>
       <div class="voice-console"><canvas id="waveCanvas" aria-label="Intensidade do áudio captado ou reproduzido"></canvas><span>ATIVIDADE DE ÁUDIO</span></div>
     </section>
 
     <section class="conversation-panel hud-panel" data-panel="conversation" aria-labelledby="conversationTitle">
       <header class="conversation-header"><h2 class="panel-title" id="conversationTitle"><span aria-hidden="true">‹</span>Conversa</h2><button class="icon-button" id="newConversation" title="Limpar conversa" aria-label="Limpar histórico da conversa"><svg><use href="#i-plus"/></svg></button></header>
       <div class="model-strip" id="modelStrip" aria-label="Disponibilidade dos modelos locais"><span data-model="llm"><i></i>Inteligência</span><span data-model="stt"><i></i>Escuta</span><span data-model="tts"><i></i>Voz</span></div>
+      <section class="setup-strip" id="setupStrip" aria-label="Ativação da conversa local"><div class="setup-strip-copy"><svg><use href="#i-core"/></svg><span><strong>Vamos ativar sua I.V.I.</strong><small>Prepare as conversas neste computador.</small></span></div><button type="button" id="setupOpen">Ativar conversa local <svg><use href="#i-arrow"/></svg></button></section>
       <div class="connection-notice" id="connectionNotice" role="status" hidden></div>
-      <div class="messages" id="messages" role="log" aria-label="Mensagens da conversa" aria-live="polite"><div class="empty-conversation" id="emptyConversation"><span class="empty-mark" aria-hidden="true">◇</span><h3>Pronta para começar.</h3><p>Escreva uma mensagem ou conheça os comandos locais.</p><div class="starter-prompts"><button data-prompt="/ajuda">Ver comandos <svg><use href="#i-arrow"/></svg></button><button data-prompt="/memorias">Minhas memórias <svg><use href="#i-arrow"/></svg></button></div></div></div>
+      <div class="messages" id="messages" role="log" aria-label="Mensagens da conversa" aria-live="polite"><div class="empty-conversation" id="emptyConversation"><span class="empty-mark" aria-hidden="true">◇</span><h3>Vamos conversar?</h3><p>Prepare sua I.V.I. para trocar ideias, fazer perguntas e continuar seus projetos.</p><div class="starter-prompts"><button type="button" class="welcome-setup-button" data-setup-open>Configurar minha I.V.I. <svg><use href="#i-arrow"/></svg></button><button data-prompt="/memorias">Minhas anotações <svg><use href="#i-arrow"/></svg></button></div></div></div>
       <div class="transcript-preview" id="transcriptPreview" hidden><span>VOCÊ DISSE</span><p></p></div>
       <div class="conversation-footer" aria-hidden="true"><i></i><span></span><i></i></div>
     </section>
@@ -89,12 +91,22 @@
   <dialog id="settingsDialog" class="panel-dialog">
     <div class="dialog-heading"><div><span class="eyebrow">DO SEU JEITO</span><h2>Configurações</h2></div><button class="icon-button" data-close="settingsDialog" aria-label="Fechar configurações"><svg><use href="#i-close"/></svg></button></div>
     <div class="settings-content">
+      <div class="setting-row"><div><label for="performanceSetting">Animação econômica</label><p>Reduz o movimento da interface para deixar mais recursos livres.</p></div><input type="checkbox" id="performanceSetting" class="switch" role="switch" checked></div>
+      <div class="setting-row"><div><label for="animationSetting">Animação do núcleo</label><p>Desative se preferir o núcleo parado. Os indicadores continuam disponíveis.</p></div><input type="checkbox" id="animationSetting" class="switch" role="switch" checked></div>
       <div class="setting-row"><div><label for="wakeWordSetting">Ativação por “Ivi”</label><p>Com o microfone ativo, aguarda seu nome na transcrição antes de responder.</p></div><input type="checkbox" id="wakeWordSetting" class="switch" role="switch"></div>
       <div class="setting-row"><div><label for="voiceSetting">Respostas em voz</label><p>Requer uma voz neural local configurada.</p></div><input type="checkbox" id="voiceSetting" class="switch" role="switch" checked></div>
       <div class="setting-row rate-row"><div><label for="rateSetting">Ritmo da voz</label><p>Ajuste para acompanhar seu ritmo.</p></div><output id="rateOutput">1,0×</output><input id="rateSetting" type="range" min="0.7" max="1.4" step="0.1" value="1"></div>
       <div class="model-details"><h3>Seu núcleo local</h3><p>Os modelos são executados no computador onde o servidor Python está aberto.</p><div id="modelDetails"></div></div>
       <p class="settings-note">O microfone começa sempre desligado. O áudio só é enviado ao servidor local durante uma sessão ativada por você. O cancelamento de eco depende do navegador e do dispositivo; fones de ouvido ajudam nas interrupções.</p>
     </div>
+  </dialog>
+  <dialog id="setupDialog" class="panel-dialog setup-dialog" aria-labelledby="setupDialogTitle">
+    <div class="dialog-heading"><div><span class="eyebrow">SUA INTELIGÊNCIA, NESTE COMPUTADOR</span><h2 id="setupDialogTitle">Configurar I.V.I.</h2></div><button class="icon-button" data-close="setupDialog" aria-label="Fechar configuração"><svg><use href="#i-close"/></svg></button></div>
+    <p class="setup-intro">Prepare a I.V.I. para conversar com você. Na primeira vez, é preciso baixar os arquivos de inteligência; depois, as conversas podem funcionar sem internet.</p>
+    <section class="setup-job" id="setupJob" aria-live="polite" hidden><p id="setupStatus">Aguardando preparação.</p><div class="setup-progress-row"><progress id="setupProgress" max="100" value="0" aria-label="Progresso da preparação" hidden></progress><span id="setupProgressLabel" hidden></span></div><details class="setup-log"><summary>Ver detalhes</summary><pre id="setupDetails"></pre></details><a id="setupRuntimeHelp" class="setup-runtime-help" href="https://aka.ms/vc14/vc_redist.x64.exe" target="_blank" rel="noopener noreferrer" hidden>Baixar Microsoft Visual C++ (64 bits) <svg><use href="#i-arrow"/></svg></a><button type="button" id="setupCancelButton" class="secondary-button" hidden>Cancelar preparação</button></section>
+    <div class="setup-choices"><article class="setup-choice"><div class="setup-choice-icon"><svg><use href="#i-core"/></svg></div><div><h3>Conversa local</h3><p>Troque ideias, faça perguntas e mantenha o contexto das conversas.</p><button type="button" id="setupConversationButton" class="primary-button">Ativar conversa local <svg><use href="#i-arrow"/></svg></button></div></article><article class="setup-choice voice-setup-choice"><div class="setup-choice-icon"><svg><use href="#i-voice"/></svg></div><div><h3>Voz e microfone</h3><p id="setupVoiceNote">A conversa por voz usa arquivos adicionais de escuta e fala.</p><button type="button" id="setupVoiceButton" class="secondary-button" disabled>Preparar voz e microfone</button></div></article></div>
+
+    <p class="setup-footnote"><svg><use href="#i-shield"/></svg><span>O download inicial exige internet e espaço em disco. Nenhuma assinatura ou API paga é necessária.</span></p>
   </dialog>
   <dialog id="memoryDialog" class="panel-dialog">
     <div class="dialog-heading"><div><span class="eyebrow">CONTINUIDADE ENTRE CONVERSAS</span><h2>Memória</h2></div><button class="icon-button" data-close="memoryDialog" aria-label="Fechar memórias"><svg><use href="#i-close"/></svg></button></div>

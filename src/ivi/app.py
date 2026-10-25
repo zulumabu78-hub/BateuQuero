@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-from contextlib import suppress
+from contextlib import asynccontextmanager, suppress
 import json
 from pathlib import Path
 import platform
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
@@ -22,6 +22,7 @@ from .dialogue import ConversationSession
 from .memory import MemoryStore
 from .providers import LocalProviders
 from .tools import ToolRegistry
+from .setup import SetupManager, SetupConflict, SetupUnavailable
 
 
 class MemoryInput(BaseModel):
@@ -34,6 +35,13 @@ class Preferences(BaseModel):
     require_wake_word: bool | None = None
     voice_enabled: bool | None = None
     speech_rate: float | None = Field(default=None, ge=0.7, le=1.5)
+    performance_mode: Literal["eco", "balanced"] | None = None
+    animation_enabled: bool | None = None
+
+
+class SetupInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    component: Literal["conversation", "voice"]
 
 
 def system_snapshot() -> dict[str, float]:
@@ -45,14 +53,30 @@ def _same_origin(origin: str | None, host: str) -> bool:
     return origin is None or origin in {f"http://{host}", f"https://{host}"}
 
 
-def create_app(settings: Settings | None = None, *, providers: Any = None, tools: Any = None) -> FastAPI:
+def create_app(settings: Settings | None = None, *, providers: Any = None, tools: Any = None, setup_manager: SetupManager | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     store = MemoryStore(settings.data_dir / "ivi.sqlite3")
     engine = providers if providers is not None else LocalProviders(settings)
     registry = tools if tools is not None else ToolRegistry()
-    app = FastAPI(title="I.V.I.", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
+    preparation = setup_manager if setup_manager is not None else SetupManager(settings, on_complete=getattr(engine, "reset_errors", None))
+
+    @asynccontextmanager
+    async def lifespan(app):
+        try:
+            yield
+        finally:
+            await preparation.cancel()
+            try:
+                close = getattr(engine, "aclose", None)
+                if close:
+                    await close()
+            finally:
+                await preparation.aclose()
+
+    app = FastAPI(title="I.V.I.", version=__version__, docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.store, app.state.providers = store, engine
+    app.state.setup = preparation
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]"])
     static = Path(__file__).parent / "static"
 
@@ -121,6 +145,23 @@ def create_app(settings: Settings | None = None, *, providers: Any = None, tools
     @app.patch("/api/settings")
     def save_settings(body: Preferences):
         return store.update_settings(body.model_dump(exclude_none=True))
+
+    @app.get("/api/setup")
+    def setup_status():
+        return preparation.snapshot()
+
+    @app.post("/api/setup", status_code=202)
+    async def start_setup(body: SetupInput):
+        try:
+            return await preparation.start(body.component)
+        except SetupConflict as error:
+            raise HTTPException(409, str(error)) from error
+        except SetupUnavailable as error:
+            raise HTTPException(409, str(error)) from error
+
+    @app.delete("/api/setup")
+    async def cancel_setup():
+        return await preparation.cancel()
 
     @app.websocket("/ws")
     async def conversation(websocket: WebSocket):

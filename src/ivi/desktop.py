@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import signal
 import subprocess
 import sys
 import time
@@ -100,6 +101,15 @@ def _port_available(port: int) -> bool:
 
 def _stop_owned_server(process: subprocess.Popen) -> None:
     if process.poll() is None:
+        if sys.platform == "win32" and hasattr(signal, "CTRL_BREAK_EVENT"):
+            try:
+                # The server has its own process group. A graceful break lets
+                # its lifespan stop the owned model process before exiting.
+                process.send_signal(signal.CTRL_BREAK_EVENT)
+                process.wait(timeout=35)
+                return
+            except (OSError, subprocess.TimeoutExpired):
+                pass
         process.terminate()
         try:
             process.wait(timeout=8)

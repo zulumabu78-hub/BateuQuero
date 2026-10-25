@@ -117,6 +117,16 @@ class ToolTests(unittest.TestCase):
             self.assertFalse(options["shell"])
         self.assertIsNone(parse_tool_request("abrir arquivos & powershell.exe"))
 
+    def test_natural_music_request_opens_spotify_without_claiming_playback(self):
+        with patch("ivi.tools.subprocess.Popen") as process, patch("ivi.tools.os.startfile", create=True) as start:
+            for text in ["coloque uma música para mim", "toca uma musica pra mim", "põe uma música"]:
+                request = parse_tool_request(text)
+                self.assertEqual(request.arguments, {"app": "spotify"})
+                self.assertIn("escolhe a faixa", request.description)
+            process.assert_not_called()
+            start.assert_not_called()
+        self.assertIsNone(parse_tool_request("coloque uma música & cmd.exe"))
+
     def test_url_validation_rejects_protocol_credentials_and_untrusted_hosts(self):
         self.assertEqual(validate_url("https://pt.wikipedia.org/wiki/IA"), "https://pt.wikipedia.org/wiki/IA")
         for url in ["file:///etc/passwd", "javascript:alert(1)", "https://google.com@evil.test", "https://127.0.0.1", "https://www.google.com:9000/", "https://www.google.com\n.evil.test", "https://www.google.com.evil.test/", "https://user:password@www.google.com"]:

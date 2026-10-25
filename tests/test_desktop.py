@@ -19,6 +19,17 @@ from ivi import desktop
 
 
 class DesktopTests(unittest.TestCase):
+    def test_windows_shutdown_gives_owned_server_time_to_close_its_model(self):
+        from unittest.mock import Mock
+        process = Mock()
+        process.poll.return_value = None
+        with patch.object(desktop.sys, "platform", "win32"), patch.object(desktop.signal, "CTRL_BREAK_EVENT", 12345, create=True):
+            desktop._stop_owned_server(process)
+        process.send_signal.assert_called_once_with(12345)
+        process.wait.assert_called_once_with(timeout=35)
+        process.terminate.assert_not_called()
+        process.kill.assert_not_called()
+
     def setUp(self):
         self.stack = ExitStack()
         self.temporary = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))

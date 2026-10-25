@@ -1,9 +1,17 @@
 {
-  "passed": 17,
+  "passed": 20,
   "failed": 0,
   "checks": [
     {
       "name": "HUD connects with honest missing models and microphone initially off",
+      "status": "passed"
+    },
+    {
+      "name": "missing conversation model has an actionable setup dialog with honest Linux capability",
+      "status": "passed"
+    },
+    {
+      "name": "synthetic setup fixture shows progress, honest failure, retry and cooperative cancel controls",
       "status": "passed"
     },
     {
@@ -20,6 +28,10 @@
     },
     {
       "name": "settings change and persist wake activation and speech speed",
+      "status": "passed"
+    },
+    {
+      "name": "eco scheduling reduces real rendering work and disabled animation sleeps at idle",
       "status": "passed"
     },
     {
@@ -79,7 +91,7 @@
         "x": 318.046875,
         "y": 64,
         "width": 683.453125,
-        "height": 375.21875
+        "height": 363.21875
       },
       "metric": {
         "width": 1366,
@@ -99,7 +111,7 @@
         "x": 318.046875,
         "y": 64,
         "width": 683.453125,
-        "height": 490.421875
+        "height": 478.421875
       },
       "metric": {
         "width": 1366,
@@ -119,7 +131,7 @@
         "x": 299.46875,
         "y": 64,
         "width": 637.53125,
-        "height": 448
+        "height": 436
       },
       "metric": {
         "width": 1280,
@@ -139,7 +151,7 @@
         "x": 377,
         "y": 81,
         "width": 1076,
-        "height": 764.40625
+        "height": 750.40625
       },
       "metric": {
         "width": 1920,
@@ -159,7 +171,7 @@
         "x": 230,
         "y": 55,
         "width": 519,
-        "height": 382.203125
+        "height": 374.203125
       },
       "metric": {
         "width": 1024,
@@ -179,7 +191,7 @@
         "x": 230,
         "y": 55,
         "width": 588,
-        "height": 292.203125
+        "height": 284.203125
       },
       "metric": {
         "width": 1093,
@@ -199,7 +211,7 @@
         "x": 10,
         "y": 92,
         "width": 370,
-        "height": 512.203125
+        "height": 502.203125
       },
       "metric": {
         "width": 390,
@@ -219,7 +231,7 @@
         "x": 10,
         "y": 92,
         "width": 340,
-        "height": 308.203125
+        "height": 298.203125
       },
       "metric": {
         "width": 360,
@@ -253,6 +265,39 @@
       }
     }
   ],
+  "renderingSamples": [
+    {
+      "mode": "balanced",
+      "enabled": true,
+      "milliseconds": 3203.7000000001863,
+      "raf": 0,
+      "shortTimers": 25,
+      "coreClears": 25,
+      "coreBlits": 75,
+      "waveClears": 0
+    },
+    {
+      "mode": "eco",
+      "enabled": true,
+      "milliseconds": 3202.5,
+      "raf": 0,
+      "shortTimers": 16,
+      "coreClears": 16,
+      "coreBlits": 48,
+      "waveClears": 0
+    },
+    {
+      "mode": "eco",
+      "enabled": false,
+      "milliseconds": 1802.7999999998137,
+      "raf": 0,
+      "shortTimers": 0,
+      "coreClears": 0,
+      "coreBlits": 0,
+      "waveClears": 0
+    }
+  ],
+  "renderingMeasurement": "Browser callback/canvas work proxy on this cloud machine; not a CPU-percentage guarantee for AMD A4 hardware.",
   "pageErrors": [],
   "consoleErrors": [],
   "resourceFailures": [],

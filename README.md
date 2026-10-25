@@ -29,7 +29,7 @@ Essa atualização da interface não baixa modelos, não recompila mecanismos ne
 
 O perfil inicial considera **AMD A4-6300, 8 GB de RAM, GeForce GT 420 e 1 TB de armazenamento**. RAM e armazenamento são recursos diferentes: o espaço de 1 TB comporta os modelos, mas não aumenta a memória disponível para inferência.
 
-O processamento é por CPU, com duas threads e contexto de 1.024 tokens. A GT 420 não é usada para inferência. O modelo sugerido, Qwen2.5 0.5B Instruct quantizado em Q4, é uma escolha pequena para começar; sua capacidade de conversar em português e raciocinar é limitada. O Whisper tiny prioriza recursos baixos e pode errar com ruído e fala informal. O Piper fornece voz neural em português brasileiro, mas não garante entonação emocional ou naturalidade de serviços maiores. Nenhuma estimativa de latência foi medida nesse computador.
+O processamento é por CPU, com contexto de 1.024 tokens. O perfil Python usa até duas threads; o motor nativo preparado pela interface reserva apenas uma para geração, deixando recursos para a interface nesse processador de dois núcleos. A GT 420 não é usada para inferência. O modelo sugerido, Qwen2.5 0.5B Instruct quantizado em Q4, é uma escolha pequena para começar; sua capacidade de conversar em português e raciocinar é limitada. O Whisper tiny prioriza recursos baixos e pode errar com ruído e fala informal. O Piper fornece voz neural em português brasileiro, mas não garante entonação emocional ou naturalidade de serviços maiores. Nenhuma estimativa de latência foi medida nesse computador.
 
 ## Iniciar no Windows
 
@@ -55,7 +55,23 @@ Copy-Item .env.example .env   # apenas se ainda nao houver .env
 
 Instalar somente o pacote básico não instala os mecanismos neurais nem baixa modelos.
 
-## Habilitar linguagem e voz locais
+## Ativar conversa e voz pela interface
+
+No Windows x64, abra a I.V.I. e clique em **Ativar conversa local**. A preparação baixa o motor CPU oficial do llama.cpp e o modelo pequeno Qwen2.5 0.5B Instruct em GGUF. Ela confere o SHA256 dos arquivos, mantém todas as DLLs do motor juntas e executa somente um teste de versão do motor antes de baixar o modelo. Não é necessário instalar C++ Build Tools ou compilar o mecanismo por esse caminho.
+
+O motor fixado é o [llama.cpp b11869 para Windows x64 CPU](https://github.com/ggml-org/llama.cpp/releases/tag/b11869). Seu ZIP oficial contém variantes x64, SSE4.2, Sandy Bridge e Piledriver, selecionadas conforme os recursos da CPU. Isso não substitui um teste real no AMD A4. Se faltarem DLLs do Windows, a preparação informa o erro e aponta para o [Microsoft Visual C++ x64 Redistributable](https://aka.ms/vc14/vc_redist.x64.exe); esse componente é um runtime, não um compilador. A I.V.I. não executa esse instalador automaticamente.
+
+Depois, use **Preparar voz e microfone** para instalar os pacotes binários de faster-whisper e Piper e baixar os arquivos de escuta e fala. A instalação exige wheels compatíveis: se não houver uma para seu Python ou se o teste de importação falhar na CPU, a preparação termina com um erro em vez de iniciar uma compilação. Preparar os arquivos não valida, por si só, a qualidade de transcrição, a reprodução de áudio ou a latência no seu computador.
+
+Esses downloads só começam depois do clique, exigem internet e podem somar centenas de megabytes. Você pode acompanhar e cancelar a preparação. Uma falha de verificação não ativa o componente nem substitui um arquivo anterior por um download incompleto. Os caminhos são salvos em `runtime.json`, dentro de `IVI_DATA_DIR`, preservando configurações existentes e sem editar seu `.env`. O microfone continua desligado até você ativá-lo. A conversa carrega o modelo local na primeira mensagem.
+
+Os pesos grandes são conferidos pelos SHA256 LFS publicados pelo Hugging Face. Arquivos pequenos de configuração e licença são conferidos pelo hash de objeto Git do commit fixado quando essa é a verificação publicada pelo provedor; o SHA256 calculado é registrado separadamente no resultado, sem ser apresentado como hash esperado do provedor. A preparação usa HTTPS com verificação de certificados e recusa redirecionamento para HTTP.
+
+O assistente guiado está limitado a Windows x64. Neste ambiente Linux, os contratos foram testados com arquivos substitutos, e o ZIP oficial do motor teve seu digest conferido; a execução do motor no Windows, o download real do GGUF e a inferência continuam sem validação aqui, pois o Hugging Face está bloqueado pelo proxy.
+
+### Instalação manual alternativa dos mecanismos neurais
+
+O caminho abaixo é opcional e usa `llama-cpp-python`, em vez do executável nativo preparado pela interface. Ele exige compilador e não é necessário para o botão **Ativar conversa local**.
 
 Para instalar os mecanismos e baixar os modelos pequenos sugeridos:
 
@@ -96,6 +112,7 @@ O arquivo `.env` na pasta em que você inicia o programa define os caminhos. Var
 | --- | --- |
 | `IVI_DATA_DIR` | Banco SQLite e pasta de modelos; `.ivi` no exemplo portátil |
 | `IVI_LLM_MODEL` | Caminho de um GGUF Instruct compatível com llama.cpp |
+| `IVI_LLM_SERVER_EXE` | Opcional: executável llama-server próprio; a preparação guiada dispensa editar este valor |
 | `IVI_STT_MODEL` | Diretório local do modelo faster-whisper |
 | `IVI_TTS_MODEL` | Caminho do arquivo ONNX da voz Piper |
 | `IVI_TTS_CONFIG` | JSON correspondente à mesma voz |
