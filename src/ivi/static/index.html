@@ -9,7 +9,7 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="stylesheet" href="/static/style.css">
 </head>
-<body data-state="idle">
+<body data-state="idle" data-view="core">
   <div class="boot-screen" id="bootScreen" aria-hidden="true">
     <span class="boot-orbit"></span><strong>I.V.I.</strong><span>INICIANDO INTERFACE</span>
   </div>
@@ -23,61 +23,68 @@
     <symbol id="i-voice" viewBox="0 0 24 24"><path d="m11 5-6 5H2v4h3l6 5V5ZM15 8a5 5 0 0 1 0 8M18 5a9 9 0 0 1 0 14"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
     <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="8" y="8" width="8" height="8" rx="1"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></symbol>
+    <symbol id="i-screen" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="13" rx="1"/><path d="M8 21h8M12 16v5"/><circle cx="12" cy="9" r="1"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7V5a1 1 0 0 1 1-1h6l2 3h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z"/><path d="M3 8h18"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18M5 6.5h14M5 17.5h14"/></symbol>
+    <symbol id="i-spotify" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M6 9c4-1.4 8-1 12 1M7 12c3.5-1 7-.7 10 1M8 15c3-.7 5.5-.4 8 .8"/></symbol>
+    <symbol id="i-document" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6V3Z"/><path d="M14 3v5h4M9 12h6M9 15h6M9 18h4"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 2 8 3v6c0 5-3.4 8.6-8 11-4.6-2.4-8-6-8-11V5l8-3Z"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5"/></symbol>
+    <symbol id="i-core" viewBox="0 0 24 24"><path d="m12 2 6 10-6 10-6-10L12 2Z"/><path d="m6 12 6 3 6-3M12 2v20"/></symbol>
   </svg>
   <header class="topbar">
-    <a class="brand" href="/" aria-label="I.V.I., início"><span class="brand-symbol"><i></i><i></i><i></i></span><span>I.V.I.<small>INTELIGÊNCIA VIRTUAL INDEPENDENTE</small></span></a>
-    <div class="connection-pill" id="connectionPill"><span class="status-dot"></span><span id="connectionLabel">Conectando</span></div>
-    <nav class="top-actions" aria-label="Controles da assistente">
-      <button class="icon-text-button" id="memoryOpen" title="Memórias"><svg><use href="#i-memory"/></svg><span>Memória</span></button>
-      <button class="icon-button" id="settingsOpen" title="Configurações" aria-label="Abrir configurações"><svg><use href="#i-settings"/></svg></button>
-    </nav>
+    <a class="brand" href="/" aria-label="I.V.I., início"><strong>I.V.I.</strong><span>INTELIGÊNCIA<br>VIRTUAL<br>INDEPENDENTE</span></a>
+    <div class="computer-label"><svg><use href="#i-screen"/></svg><span>NESTE COMPUTADOR</span></div>
+    <div class="topbar-status"><div class="connection-pill" id="connectionPill"><span class="status-dot"></span><span id="connectionLabel">Conectando</span></div><span class="platform-label" id="platformLabel">LOCAL</span><time id="clock"></time><button id="fullscreenButton" class="icon-button fullscreen-button" title="Entrar em tela cheia" aria-label="Entrar em tela cheia"><svg><use href="#i-expand"/></svg></button></div>
+    <nav class="view-tabs" aria-label="Painéis da I.V.I."><button type="button" data-view="core" aria-pressed="true"><svg><use href="#i-core"/></svg>Núcleo</button><button type="button" data-view="conversation" aria-pressed="false"><svg><use href="#i-document"/></svg>Conversa</button><button type="button" data-view="system" aria-pressed="false"><svg><use href="#i-cpu"/></svg>Sistema</button></nav>
   </header>
 
   <main class="workspace">
-    <section class="presence-panel" aria-labelledby="presenceTitle">
-      <div class="presence-heading"><span class="eyebrow">SEU ESPAÇO DE CONEXÃO</span><span class="local-chip">PROCESSAMENTO LOCAL</span></div>
+    <aside class="system-panel" data-panel="system" aria-label="Sistema, aplicativos e memória">
+      <section class="system-card hud-panel" aria-labelledby="systemTitle">
+        <h2 class="panel-title" id="systemTitle">Sistema <span aria-hidden="true">››</span></h2>
+        <article class="metric-card"><svg class="metric-icon"><use href="#i-cpu"/></svg><div class="metric-main"><div class="metric-heading"><h3>CPU</h3><strong id="cpuValue">—</strong></div><progress id="cpuMeter" max="100" value="0" aria-label="Uso atual de CPU"></progress><div class="metric-meta"><span>USO ATUAL</span><span id="cpuThreads">—</span></div></div></article>
+        <article class="metric-card"><svg class="metric-icon"><use href="#i-memory"/></svg><div class="metric-main"><div class="metric-heading"><h3>Memória</h3><strong id="ramValue">—</strong></div><progress id="ramMeter" max="100" value="0" aria-label="Uso atual de memória RAM"></progress><div class="metric-meta"><span>EM USO</span><span id="ramDetail">— GB / — GB</span></div></div></article>
+      </section>
+      <section class="applications-card hud-panel" aria-labelledby="applicationsTitle">
+        <h2 class="panel-title" id="applicationsTitle">Aplicativos <span aria-hidden="true">⌁</span></h2>
+        <div class="application-list"><button type="button" class="application-link spotify-link" data-command="abrir spotify"><svg><use href="#i-spotify"/></svg><span><strong>Spotify</strong><small>Abrir suas músicas</small></span><b aria-hidden="true">›</b></button><button type="button" class="application-link files-link" data-command="abrir arquivos"><svg><use href="#i-folder"/></svg><span><strong>Arquivos</strong><small>Pastas e documentos</small></span><b aria-hidden="true">›</b></button><button type="button" class="application-link browser-link" data-command="abrir navegador"><svg><use href="#i-globe"/></svg><span><strong>Navegador</strong><small>Abrir a internet</small></span><b aria-hidden="true">›</b></button></div>
+      </section>
+      <section class="memory-card hud-panel" aria-labelledby="memoryTitle"><h2 class="panel-title" id="memoryTitle"><svg><use href="#i-document"/></svg>Memória <span aria-hidden="true">››</span></h2><button type="button" class="memory-launcher" id="memoryOpen"><svg><use href="#i-document"/></svg><span><strong>Suas anotações</strong><small>Ideias e informações importantes, sempre por perto.</small></span><b aria-hidden="true">›</b></button></section>
+    </aside>
+
+    <section class="presence-panel" data-panel="core" aria-labelledby="presenceTitle">
+      <h1 class="sr-only" id="presenceTitle">Núcleo da I.V.I.</h1>
       <div class="core-field">
-        <div class="core-crosshair crosshair-top"></div><div class="core-crosshair crosshair-bottom"></div>
-        <span class="core-coordinate coordinate-left">IVI / NÚCLEO</span><span class="core-coordinate coordinate-right" id="coreMode">EM ESPERA</span>
-        <canvas id="coreCanvas" aria-label="Núcleo digital animado da I.V.I."></canvas>
-        <div class="core-halo"></div>
+        <div class="core-edge edge-left" aria-hidden="true"></div><div class="core-edge edge-right" aria-hidden="true"></div>
+        <div class="core-legend legend-left" aria-hidden="true"><span>ESCUTA</span><span>INTERPRETA</span><span>RESPONDE</span><span>EXECUTA</span><i></i></div>
+        <div class="core-legend legend-right" aria-hidden="true"><span>LOCAL</span><span>PRIVADO</span><span>SEMPRE SEU</span><i></i></div>
+        <span class="core-coordinate" id="coreMode">EM ESPERA</span>
+        <canvas id="coreCanvas" aria-label="Núcleo orbital animado da I.V.I."></canvas>
+        <div class="core-crosshair crosshair-top" aria-hidden="true"></div><div class="core-crosshair crosshair-bottom" aria-hidden="true"></div>
       </div>
-      <div class="presence-caption">
-        <div class="state-indicator"><span></span><p id="stateLabel">Em espera</p></div>
-        <h1 id="presenceTitle">Uma nova forma<br>de <em>estar presente.</em></h1>
-        <p class="state-description" id="stateDescription">Um espaço para conversar, criar e fazer acontecer.</p>
-      </div>
-      <div class="voice-console">
-        <canvas id="waveCanvas" aria-label="Intensidade do áudio captado ou reproduzido"></canvas>
-        <div class="voice-controls">
-          <button id="voiceButton" class="small-control" aria-pressed="true" title="Ativar ou silenciar respostas por voz"><svg><use href="#i-voice"/></svg><span id="voiceLabel">Voz ativada</span></button>
-          <button id="micButton" class="mic-button" aria-pressed="false" aria-label="Ativar microfone"><svg id="micIcon"><use href="#i-mic"/></svg></button>
-          <button id="interruptButton" class="small-control interrupt-control" disabled title="Interromper resposta"><span class="stop-square"></span><span>Interromper</span></button>
-        </div>
-        <p class="mic-caption" id="micLabel">Microfone desligado <span>· toque para conversar</span></p>
-      </div>
-      <div class="resource-strip" aria-label="Uso real dos recursos do computador">
-        <div><span class="resource-icon">◷</span><span>CPU <strong id="cpuValue">—</strong></span></div>
-        <span class="resource-divider"></span>
-        <div><svg><use href="#i-memory"/></svg><span>MEMÓRIA <strong id="ramValue">—</strong></span></div>
-        <span class="resource-divider"></span>
-        <div><span class="privacy-dot"></span><span>SEM NUVEM OBRIGATÓRIA</span></div>
-      </div>
+      <div class="presence-caption"><div class="state-indicator"><span></span><p id="stateLabel">Em espera</p></div><p class="state-description" id="stateDescription">Ative o microfone ou escreva um pedido.</p></div>
+      <div class="voice-console"><canvas id="waveCanvas" aria-label="Intensidade do áudio captado ou reproduzido"></canvas><span>ATIVIDADE DE ÁUDIO</span></div>
     </section>
 
-    <section class="conversation-panel" aria-labelledby="conversationTitle">
-      <header class="conversation-header"><div><span class="eyebrow">DIÁLOGO CONTÍNUO</span><h2 id="conversationTitle">Conversa</h2></div><button class="icon-button" id="newConversation" title="Limpar conversa" aria-label="Limpar histórico da conversa"><svg><use href="#i-plus"/></svg></button></header>
+    <section class="conversation-panel hud-panel" data-panel="conversation" aria-labelledby="conversationTitle">
+      <header class="conversation-header"><h2 class="panel-title" id="conversationTitle"><span aria-hidden="true">‹</span>Conversa</h2><button class="icon-button" id="newConversation" title="Limpar conversa" aria-label="Limpar histórico da conversa"><svg><use href="#i-plus"/></svg></button></header>
       <div class="model-strip" id="modelStrip" aria-label="Disponibilidade dos modelos locais"><span data-model="llm"><i></i>Inteligência</span><span data-model="stt"><i></i>Escuta</span><span data-model="tts"><i></i>Voz</span></div>
       <div class="connection-notice" id="connectionNotice" role="status" hidden></div>
-      <div class="messages" id="messages" role="log" aria-label="Mensagens da conversa" aria-live="polite">
-        <div class="empty-conversation" id="emptyConversation"><span class="empty-mark">✦</span><span class="eyebrow">OLÁ. EU SOU A I.V.I.</span><h3>O que vamos<br>fazer hoje?</h3><p>Uma ideia, uma pergunta ou o começo de algo novo.</p><div class="starter-prompts"><button data-prompt="/ajuda">Conhecer os comandos <svg><use href="#i-arrow"/></svg></button><button data-prompt="/memorias">Explorar minhas memórias <svg><use href="#i-arrow"/></svg></button></div></div>
-      </div>
+      <div class="messages" id="messages" role="log" aria-label="Mensagens da conversa" aria-live="polite"><div class="empty-conversation" id="emptyConversation"><span class="empty-mark" aria-hidden="true">◇</span><h3>Pronta para começar.</h3><p>Escreva uma mensagem ou conheça os comandos locais.</p><div class="starter-prompts"><button data-prompt="/ajuda">Ver comandos <svg><use href="#i-arrow"/></svg></button><button data-prompt="/memorias">Minhas memórias <svg><use href="#i-arrow"/></svg></button></div></div></div>
       <div class="transcript-preview" id="transcriptPreview" hidden><span>VOCÊ DISSE</span><p></p></div>
-      <form id="chatForm" class="chat-form"><label class="sr-only" for="chatInput">Sua mensagem para a I.V.I.</label><textarea id="chatInput" rows="1" maxlength="4000" placeholder="Escreva para a I.V.I.…" autocomplete="off"></textarea><button id="sendButton" type="submit" aria-label="Enviar mensagem"><svg><use href="#i-send"/></svg></button></form>
-      <p class="composer-hint"><span>Enter para enviar <span class="hint-separator">·</span> Shift + Enter para nova linha</span><span class="local-data">Seus dados, aqui.</span></p>
+      <div class="conversation-footer" aria-hidden="true"><i></i><span></span><i></i></div>
     </section>
   </main>
-  <footer class="app-footer"><span>I.V.I. <i>PERSONAL INTELLIGENCE SYSTEM</i></span><span id="platformLabel">AMBIENTE LOCAL</span><time id="clock"></time></footer>
+
+  <footer class="control-dock hud-panel" id="controlDock">
+    <div class="consent-note"><svg><use href="#i-shield"/></svg><span><strong>AÇÕES COM CONFIRMAÇÃO</strong><small>Ações no computador exigem sua autorização.</small></span></div>
+    <div class="dock-mic"><button id="micButton" class="mic-button" aria-pressed="false" aria-label="Ativar microfone"><svg id="micIcon"><use href="#i-mic-off"/></svg><span id="micActionLabel">Ativar microfone</span></button><p class="mic-caption" id="micLabel">Microfone desligado</p></div>
+    <form id="chatForm" class="chat-form"><label class="sr-only" for="chatInput">Sua mensagem para a I.V.I.</label><textarea id="chatInput" rows="1" maxlength="4000" placeholder="Fale ou digite um pedido…" autocomplete="off"></textarea><button id="sendButton" type="submit" aria-label="Enviar mensagem"><svg><use href="#i-send"/></svg></button></form>
+    <button id="interruptButton" class="interrupt-control" disabled title="Interromper resposta"><span class="stop-square"></span><span>Interromper</span></button>
+    <div class="dock-options"><button id="voiceButton" class="icon-button small-control" aria-pressed="true" title="Ativar ou silenciar respostas por voz"><svg><use href="#i-voice"/></svg><span id="voiceLabel" class="sr-only">Voz ativada</span></button><button class="icon-button" id="settingsOpen" title="Configurações" aria-label="Abrir configurações"><svg><use href="#i-settings"/></svg></button></div>
+  </footer>
 
   <dialog id="settingsDialog" class="panel-dialog">
     <div class="dialog-heading"><div><span class="eyebrow">DO SEU JEITO</span><h2>Configurações</h2></div><button class="icon-button" data-close="settingsDialog" aria-label="Fechar configurações"><svg><use href="#i-close"/></svg></button></div>

@@ -1,49 +1,260 @@
 {
-  "passed": 10,
+  "passed": 17,
   "failed": 0,
   "checks": [
     {
-      "name": "initial connection, honest model state, no microphone permission request",
+      "name": "HUD connects with honest missing models and microphone initially off",
       "status": "passed"
     },
     {
-      "name": "help command creates one real user and assistant message",
+      "name": "real browser fullscreen enters and exits through the Fullscreen API",
       "status": "passed"
     },
     {
-      "name": "free conversation reports missing model honestly",
+      "name": "chat help uses the actual WebSocket and keeps the composer visible",
       "status": "passed"
     },
     {
-      "name": "memory form creates text safely, persists and deletes",
+      "name": "memory creates safe text, persists after reload and removes only its own fixture",
       "status": "passed"
     },
     {
-      "name": "remember command and memory list integration",
+      "name": "settings change and persist wake activation and speech speed",
       "status": "passed"
     },
     {
-      "name": "settings persist wake activation and speech rate across reload",
+      "name": "missing STT blocks capture with an explanation and no permission request",
       "status": "passed"
     },
     {
-      "name": "desktop tool requires explicit confirmation and can be rejected",
+      "name": "application shortcuts require confirmation and files action respects Linux guard",
       "status": "passed"
     },
     {
-      "name": "unavailable STT prevents capture without prompting permission",
+      "name": "HUD 1366x640: viewport controls and internal transcript scrolling",
       "status": "passed"
     },
     {
-      "name": "mobile layout has no horizontal overflow and dialogs remain usable",
+      "name": "HUD 1366x768: viewport controls and internal transcript scrolling",
       "status": "passed"
     },
     {
-      "name": "no browser exceptions, CSP violations or failed static resources",
+      "name": "HUD 1280x720: viewport controls and internal transcript scrolling",
       "status": "passed"
+    },
+    {
+      "name": "HUD 1920x1080: viewport controls and internal transcript scrolling",
+      "status": "passed"
+    },
+    {
+      "name": "HUD 1024x600: viewport controls and internal transcript scrolling",
+      "status": "passed"
+    },
+    {
+      "name": "HUD 1093x510: viewport controls and internal transcript scrolling",
+      "status": "passed"
+    },
+    {
+      "name": "HUD 390x844: viewport controls and internal transcript scrolling",
+      "status": "passed"
+    },
+    {
+      "name": "HUD 360x640: viewport controls and internal transcript scrolling",
+      "status": "passed"
+    },
+    {
+      "name": "HUD 844x390: viewport controls and internal transcript scrolling",
+      "status": "passed"
+    },
+    {
+      "name": "no browser exceptions, CSP violations, 404s or failed resources",
+      "status": "passed"
+    }
+  ],
+  "dimensions": [
+    {
+      "width": 1366,
+      "height": 640,
+      "core": {
+        "x": 318.046875,
+        "y": 64,
+        "width": 683.453125,
+        "height": 375.21875
+      },
+      "metric": {
+        "width": 1366,
+        "height": 640,
+        "scrollWidth": 1366,
+        "scrollHeight": 640,
+        "bodyWidth": 1366,
+        "bodyHeight": 640,
+        "scrollX": 0,
+        "scrollY": 0
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "core": {
+        "x": 318.046875,
+        "y": 64,
+        "width": 683.453125,
+        "height": 490.421875
+      },
+      "metric": {
+        "width": 1366,
+        "height": 768,
+        "scrollWidth": 1366,
+        "scrollHeight": 768,
+        "bodyWidth": 1366,
+        "bodyHeight": 768,
+        "scrollX": 0,
+        "scrollY": 0
+      }
+    },
+    {
+      "width": 1280,
+      "height": 720,
+      "core": {
+        "x": 299.46875,
+        "y": 64,
+        "width": 637.53125,
+        "height": 448
+      },
+      "metric": {
+        "width": 1280,
+        "height": 720,
+        "scrollWidth": 1280,
+        "scrollHeight": 720,
+        "bodyWidth": 1280,
+        "bodyHeight": 720,
+        "scrollX": 0,
+        "scrollY": 0
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "core": {
+        "x": 377,
+        "y": 81,
+        "width": 1076,
+        "height": 764.40625
+      },
+      "metric": {
+        "width": 1920,
+        "height": 1080,
+        "scrollWidth": 1920,
+        "scrollHeight": 1080,
+        "bodyWidth": 1920,
+        "bodyHeight": 1080,
+        "scrollX": 0,
+        "scrollY": 0
+      }
+    },
+    {
+      "width": 1024,
+      "height": 600,
+      "core": {
+        "x": 230,
+        "y": 55,
+        "width": 519,
+        "height": 382.203125
+      },
+      "metric": {
+        "width": 1024,
+        "height": 600,
+        "scrollWidth": 1024,
+        "scrollHeight": 600,
+        "bodyWidth": 1024,
+        "bodyHeight": 600,
+        "scrollX": 0,
+        "scrollY": 0
+      }
+    },
+    {
+      "width": 1093,
+      "height": 510,
+      "core": {
+        "x": 230,
+        "y": 55,
+        "width": 588,
+        "height": 292.203125
+      },
+      "metric": {
+        "width": 1093,
+        "height": 510,
+        "scrollWidth": 1093,
+        "scrollHeight": 510,
+        "bodyWidth": 1093,
+        "bodyHeight": 510,
+        "scrollX": 0,
+        "scrollY": 0
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "core": {
+        "x": 10,
+        "y": 92,
+        "width": 370,
+        "height": 512.203125
+      },
+      "metric": {
+        "width": 390,
+        "height": 844,
+        "scrollWidth": 390,
+        "scrollHeight": 844,
+        "bodyWidth": 390,
+        "bodyHeight": 844,
+        "scrollX": 0,
+        "scrollY": 0
+      }
+    },
+    {
+      "width": 360,
+      "height": 640,
+      "core": {
+        "x": 10,
+        "y": 92,
+        "width": 340,
+        "height": 308.203125
+      },
+      "metric": {
+        "width": 360,
+        "height": 640,
+        "scrollWidth": 360,
+        "scrollHeight": 640,
+        "bodyWidth": 360,
+        "bodyHeight": 640,
+        "scrollX": 0,
+        "scrollY": 0
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "core": {
+        "x": 14,
+        "y": 51,
+        "width": 816,
+        "height": 192
+      },
+      "metric": {
+        "width": 844,
+        "height": 390,
+        "scrollWidth": 844,
+        "scrollHeight": 390,
+        "bodyWidth": 844,
+        "bodyHeight": 390,
+        "scrollX": 0,
+        "scrollY": 0
+      }
     }
   ],
   "pageErrors": [],
   "consoleErrors": [],
-  "resourceFailures": []
+  "resourceFailures": [],
+  "cspViolations": []
 }

@@ -6,6 +6,25 @@ Assistente pessoal em Python com interface própria, conversa por texto, memóri
 
 Esta é uma primeira implementação funcional da arquitetura. Os modelos neurais não acompanham o código. Sem eles, a interface, a memória e os comandos locais continuam disponíveis, mas a I.V.I. informa que ainda não pode gerar conversas, transcrever ou sintetizar voz. Ela não simula uma inteligência com respostas prontas.
 
+## Abrir a interface em tela cheia
+
+Com a instalação concluída, dê dois cliques em **`INICIAR-IVI.cmd`** na pasta do projeto. O inicializador usa o Python de `.venv`, inicia ou reutiliza o servidor local da I.V.I. e procura Microsoft Edge ou Google Chrome para abrir uma janela de aplicativo em tela cheia, sem barra de endereços. O navegador usa um perfil próprio na pasta de dados da I.V.I.
+
+Se Edge e Chrome não forem encontrados, o inicializador abre o navegador padrão. Use o controle de tela cheia da interface ou `F11` para alternar a visualização. O endereço local continua sendo `http://127.0.0.1:8765`, salvo se você configurou outra porta em `.env`.
+
+O atalho não pede administrador, não ativa scripts PowerShell e não instala pacotes. O comportamento da janela Edge/Chrome no Windows ainda precisa ser confirmado no computador de destino; a implementação e os testes feitos no Linux não substituem essa verificação.
+
+### Atualizar uma instalação que já funciona
+
+1. Encerre o servidor antigo com `Ctrl+C` no terminal e feche a janela antiga da interface.
+2. Extraia a versão nova em **outra pasta**, sem apagar a instalação atual.
+3. Na pasta **nova**, dê dois cliques em **`ATUALIZAR-IVI.cmd`**. Selecione a sua pasta **antiga**, que contém `.venv`, `.env` e os dados já instalados. Se a janela de seleção não estiver disponível, informe esse caminho no terminal.
+4. Ao terminar, abra **`INICIAR-IVI.cmd` na pasta antiga**. A pasta nova serve como fonte da atualização e não precisa ter uma `.venv` própria.
+
+O atualizador usa o Python 3.11 já instalado e copia somente arquivos do programa, scripts, documentação e o exemplo de configuração. Ele preserva `.env`, `.ivi`, `.venv`, modelos, dados personalizados e `.git`. Os arquivos anteriores substituídos ficam em `.ivi-backups`, dentro da instalação antiga; uma falha de cópia tenta restaurá-los e informa o caminho do backup. Nenhum arquivo antigo é apagado para fazer a atualização. Se você extraiu diretamente sobre a instalação atual e selecionou a mesma pasta, o atualizador informa que nenhuma cópia é necessária.
+
+Essa atualização da interface não baixa modelos, não recompila mecanismos neurais e não abre a assistente automaticamente. Ela também não encerra processos: feche o servidor antes de começar. A seleção de pasta e os atalhos Windows ainda precisam de validação no computador de destino.
+
 ## Perfil do seu computador
 
 O perfil inicial considera **AMD A4-6300, 8 GB de RAM, GeForce GT 420 e 1 TB de armazenamento**. RAM e armazenamento são recursos diferentes: o espaço de 1 TB comporta os modelos, mas não aumenta a memória disponível para inferência.
@@ -18,10 +37,10 @@ Instale Python 3.11 de [python.org](https://www.python.org/downloads/windows/) c
 
 ```powershell
 .\scripts\setup-windows.ps1
-.\.venv\Scripts\python.exe -m ivi
+.\INICIAR-IVI.cmd
 ```
 
-Abra `http://127.0.0.1:8765` no próprio computador. O microfone começa desligado e só é solicitado ao pressionar o controle de microfone. Para encerrar o servidor, use `Ctrl+C` no terminal.
+O inicializador abre a janela no próprio computador. O microfone começa desligado e só é solicitado ao pressionar o controle de microfone. Para executar apenas o servidor no terminal, use `.\.venv\Scripts\python.exe -m ivi`; nesse modo, encerre com `Ctrl+C`.
 
 O script cria `.venv` e copia `.env.example` para `.env` somente se o arquivo ainda não existir. Ele não altera a política de execução do PowerShell e não requer privilégios de administrador. Se sua política bloquear scripts, use a instalação manual abaixo ou uma política aprovada por você; não há instrução de contorno no instalador.
 
@@ -31,7 +50,7 @@ O script cria `.venv` e copia `.env.example` para `.env` somente se o arquivo ai
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e .
 Copy-Item .env.example .env   # apenas se ainda nao houver .env
-.\.venv\Scripts\python.exe -m ivi
+.\INICIAR-IVI.cmd
 ```
 
 Instalar somente o pacote básico não instala os mecanismos neurais nem baixa modelos.

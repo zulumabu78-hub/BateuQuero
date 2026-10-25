@@ -106,6 +106,17 @@ class ToolTests(unittest.TestCase):
             browser.assert_called_once_with("https://open.spotify.com/search/Laufey%20%26%20jazz", new=2)
             self.assertIn("Escolha a faixa", message)
 
+    def test_files_shortcut_only_opens_the_fixed_windows_explorer(self):
+        request = parse_tool_request("abrir arquivos")
+        self.assertEqual(request.arguments, {"app": "files"})
+        with patch("ivi.tools.subprocess.Popen") as process:
+            ToolRegistry(platform="win32").execute(request)
+            arguments, options = process.call_args
+            self.assertEqual(len(arguments[0]), 1)
+            self.assertTrue(arguments[0][0].endswith("explorer.exe"))
+            self.assertFalse(options["shell"])
+        self.assertIsNone(parse_tool_request("abrir arquivos & powershell.exe"))
+
     def test_url_validation_rejects_protocol_credentials_and_untrusted_hosts(self):
         self.assertEqual(validate_url("https://pt.wikipedia.org/wiki/IA"), "https://pt.wikipedia.org/wiki/IA")
         for url in ["file:///etc/passwd", "javascript:alert(1)", "https://google.com@evil.test", "https://127.0.0.1", "https://www.google.com:9000/", "https://www.google.com\n.evil.test", "https://www.google.com.evil.test/", "https://user:password@www.google.com"]:

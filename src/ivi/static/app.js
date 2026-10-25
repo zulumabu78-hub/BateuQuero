@@ -40,6 +40,23 @@
   let toastTimer = null;
   let settingsQueue = Promise.resolve();
   let settingsPending = 0;
+  const narrowLayout = matchMedia('(max-width: 980px)');
+
+  function selectView(view) {
+    if (!['core', 'conversation', 'system'].includes(view)) return;
+    document.body.dataset.view = view;
+    document.querySelectorAll('button[data-view]').forEach(button => {
+      const selected = button.dataset.view === view;
+      if (button.getAttribute('role') === 'tab') button.setAttribute('aria-selected', String(selected));
+      button.setAttribute('aria-pressed', String(selected));
+      button.classList.toggle('active', selected);
+    });
+    if (view === 'conversation') scrollConversation();
+  }
+
+  function revealConversation() {
+    if (narrowLayout.matches) selectView('conversation');
+  }
 
   function toast(message) {
     $('#toast').textContent = message;
@@ -125,13 +142,32 @@
       ? 'Diga “Ivi” antes do seu pedido.' : copy[1];
     $('#coreMode').textContent = copy[0].toLocaleUpperCase('pt-BR');
     els.interrupt.disabled = !audioPlaying && !['thinking', 'speaking', 'transcribing'].includes(serverState);
+    scheduleAnimation();
   }
 
   function updateTelemetry(system) {
     if (!system) return;
-    $('#cpuValue').textContent = Number.isFinite(system.cpu_percent) ? Math.round(system.cpu_percent) + '%' : '—';
-    $('#ramValue').textContent = Number.isFinite(system.ram_percent) ? Math.round(system.ram_percent) + '%' : '—';
-    if (Number.isFinite(system.ram_total_gb)) $('#ramValue').title = system.ram_total_gb.toFixed(1) + ' GB disponíveis no servidor';
+    const percentage = value => Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : null;
+    const cpu = percentage(system.cpu_percent);
+    const ram = percentage(system.ram_percent);
+    $('#cpuValue').textContent = cpu === null ? '—' : Math.round(cpu) + '%';
+    $('#ramValue').textContent = ram === null ? '—' : Math.round(ram) + '%';
+    for (const [id, value] of [['cpuMeter', cpu], ['ramMeter', ram]]) {
+      const meter = $('#' + id);
+      if (!meter) continue;
+      meter.max = 100;
+      meter.value = value ?? 0;
+      meter.setAttribute('aria-valuetext', value === null ? 'Medição indisponível' : Math.round(value) + '% em uso');
+      meter.classList.toggle('unavailable', value === null);
+    }
+    if (Number.isFinite(system.ram_total_gb) && system.ram_total_gb > 0) {
+      const format = value => value.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+      $('#ramValue').title = format(system.ram_total_gb) + ' GB de memória no computador que executa a I.V.I.';
+      const used = Number.isFinite(system.ram_used_gb) ? system.ram_used_gb : ram === null ? null : system.ram_total_gb * ram / 100;
+      if ($('#ramDetail')) $('#ramDetail').textContent = (used === null ? '—' : format(used) + ' GB') + ' / ' + format(system.ram_total_gb) + ' GB';
+    } else if ($('#ramDetail')) $('#ramDetail').textContent = 'Medição indisponível';
+    if ($('#cpuThreads')) $('#cpuThreads').textContent = Number.isInteger(system.cpu_threads) && system.cpu_threads > 0
+      ? system.cpu_threads + (system.cpu_threads === 1 ? ' thread' : ' threads') : 'CPU LOCAL';
   }
 
   function applySettings(values) {
@@ -225,6 +261,7 @@
   function sendText(text) {
     text = text.trim();
     if (!text) return false;
+    revealConversation();
     if (socket?.readyState !== WebSocket.OPEN) return send({ type: 'text', text });
     stopPlayback();
     finishPending(undefined, true);
@@ -255,6 +292,7 @@
         break;
       case 'token':
         if (!pendingMessage) {
+          revealConversation();
           pendingText = '';
           pendingMessage = appendMessage('assistant', '', { streaming: true });
         }
@@ -264,7 +302,7 @@
         break;
       case 'assistant':
         if (pendingMessage) finishPending(event.text || pendingText);
-        else appendMessage('assistant', event.text || '');
+        else { revealConversation(); appendMessage('assistant', event.text || ''); }
         break;
       case 'transcript':
         $('#transcriptPreview').hidden = !event.text;
@@ -275,6 +313,7 @@
         if (!suppressAudio && settings.voice_enabled !== false) enqueueAudio(event.audio);
         break;
       case 'error':
+        revealConversation();
         finishPending();
         appendMessage('error', event.message || 'Não foi possível concluir esta etapa.');
         serverState = 'idle';
@@ -418,6 +457,7 @@
   function refreshMicCaption() {
     if (micStarting) {
       $('#micLabel').textContent = 'Aguardando permissão do microfone…';
+      if ($('#micActionLabel')) $('#micActionLabel').textContent = 'Aguardando microfone';
       return;
     }
     $('#micLabel').replaceChildren();
@@ -427,6 +467,7 @@
     $('#micLabel').append(hint);
     els.mic.setAttribute('aria-pressed', String(Boolean(mic)));
     els.mic.setAttribute('aria-label', mic ? 'Desligar microfone' : 'Ativar microfone');
+    if ($('#micActionLabel')) $('#micActionLabel').textContent = mic ? 'Desligar microfone' : 'Ativar microfone';
     els.mic.classList.toggle('active', Boolean(mic));
     $('#micIcon use').setAttribute('href', mic ? '#i-mic' : '#i-mic-off');
   }
@@ -630,6 +671,50 @@
     els.input.style.height = Math.min(els.input.scrollHeight, 150) + 'px';
   });
   document.querySelectorAll('[data-prompt]').forEach(button => button.addEventListener('click', () => sendText(button.dataset.prompt)));
+  document.querySelectorAll('[data-command]').forEach(button => button.addEventListener('click', () => sendText(button.dataset.command)));
+  document.querySelectorAll('button[data-view]').forEach(button => button.addEventListener('click', event => {
+    selectView(button.dataset.view);
+    if (event.detail === 0 && button.dataset.view === 'conversation') els.input.focus({ preventScroll: true });
+  }));
+  selectView(document.body.dataset.view || 'core');
+
+  function syncFullscreen() {
+    const button = $('#fullscreenButton');
+    if (!button) return;
+    const active = Boolean(document.fullscreenElement);
+    const label = active ? 'Sair da tela cheia' : 'Entrar em tela cheia';
+    button.setAttribute('aria-pressed', String(active));
+    button.setAttribute('aria-label', label);
+    button.title = label;
+    button.classList.toggle('active', active);
+    document.body.classList.toggle('fullscreen-active', active);
+  }
+
+  async function toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) {
+        if (typeof document.exitFullscreen !== 'function') throw new Error('API indisponível');
+        await document.exitFullscreen();
+      } else {
+        if (typeof document.documentElement.requestFullscreen !== 'function') throw new Error('API indisponível');
+        await document.documentElement.requestFullscreen();
+      }
+    } catch {
+      toast('O navegador não permitiu a tela cheia. Você pode usar o controle de tela cheia do próprio navegador.');
+    } finally {
+      syncFullscreen();
+    }
+  }
+
+  $('#fullscreenButton')?.addEventListener('click', () => void toggleFullscreen());
+  document.addEventListener('fullscreenchange', () => { syncFullscreen(); resizeCanvases(); });
+  document.addEventListener('keydown', event => {
+    if (event.ctrlKey && event.shiftKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === 'f') {
+      event.preventDefault();
+      void toggleFullscreen();
+    }
+  });
+  syncFullscreen();
   els.mic.addEventListener('click', () => { if (mic) stopMicrophone(); else void startMicrophone(); });
   els.voice.addEventListener('click', () => void saveSettings({ voice_enabled: settings.voice_enabled === false }));
   els.interrupt.addEventListener('click', interrupt);
@@ -673,14 +758,15 @@
   updateClock();
   const clockTimer = setInterval(updateClock, 15000);
 
-  // A lightweight projected sphere: 220 particles, no WebGL or remote assets.
+  // Canvas HUD: projected orbits, segmented rings and 112 sparse particles.
+  // All audio modulation comes from the microphone or actual playback analyser.
   const core = $('#coreCanvas');
   const wave = $('#waveCanvas');
   const coreContext = core.getContext('2d');
   const waveContext = wave.getContext('2d');
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
-  const particles = Array.from({ length: 220 }, (_, index) => {
-    const y = 1 - (index / 219) * 2;
+  const particles = Array.from({ length: 112 }, (_, index) => {
+    const y = 1 - (index / 111) * 2;
     const radius = Math.sqrt(1 - y * y);
     const angle = index * Math.PI * (3 - Math.sqrt(5));
     return [Math.cos(angle) * radius, y, Math.sin(angle) * radius];
@@ -731,43 +817,180 @@
     if (width < 1 || height < 1) return;
     const cx = width / 2;
     const cy = height / 2;
-    const radius = Math.min(width * 0.27, height * 0.34) * (1 + level * 0.1);
-    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 1.8);
-    glow.addColorStop(0, 'rgba(31,157,207,' + (0.13 + level * 0.15) + ')');
-    glow.addColorStop(0.45, 'rgba(22,121,180,0.05)');
-    glow.addColorStop(1, 'rgba(10,80,140,0)');
+    const radius = Math.min(width, height) * 0.435 * (1 + level * 0.018);
+    const tau = Math.PI * 2;
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 1.12);
+    glow.addColorStop(0, 'rgba(15,140,218,' + (0.18 + level * 0.2) + ')');
+    glow.addColorStop(0.48, 'rgba(0,100,175,0.13)');
+    glow.addColorStop(0.78, 'rgba(0,96,173,0.06)');
+    glow.addColorStop(1, 'rgba(0,50,100,0)');
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, width, height);
     ctx.save();
     ctx.translate(cx, cy);
-    for (let ring = 0; ring < 3; ring++) {
+
+    const arc = (r, start, end, color, lineWidth = 1, blur = 0) => {
       ctx.beginPath();
-      for (let step = 0; step <= 96; step++) {
-        const angle = step / 96 * Math.PI * 2;
-        const tilt = 0.25 + ring * 0.66 + Math.sin(phase * 0.5) * 0.07;
-        const point = [Math.cos(angle), Math.sin(angle) * Math.cos(tilt), Math.sin(angle) * Math.sin(tilt)];
-        const [x, y] = projected(point, radius * (1.28 + ring * 0.08), phase * (ring % 2 ? -0.25 : 0.3) + ring);
-        if (step === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-      }
-      ctx.strokeStyle = ['rgba(69,198,243,0.25)', 'rgba(46,112,171,0.18)', 'rgba(80,221,238,0.2)'][ring];
-      ctx.lineWidth = ring === 0 ? 1 : 0.65;
+      ctx.arc(0, 0, r, start, end);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = lineWidth;
+      ctx.shadowBlur = blur;
+      ctx.shadowColor = color;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    };
+    ctx.lineCap = 'butt';
+
+    // Fine axes and the outer instrument bezel stay geometrically stable.
+    ctx.strokeStyle = 'rgba(52,162,204,0.13)';
+    ctx.lineWidth = 0.7;
+    ctx.setLineDash([2, 7]);
+    ctx.beginPath();
+    ctx.moveTo(-radius * 1.07, 0); ctx.lineTo(radius * 1.07, 0);
+    ctx.moveTo(0, -radius * 1.07); ctx.lineTo(0, radius * 1.07);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    arc(radius * 1.015, 0, tau, 'rgba(36,124,172,0.3)', 0.7);
+    arc(radius * 0.982, 0, tau, 'rgba(70,184,224,0.15)', 0.7);
+    for (let index = 0; index < 120; index++) {
+      const angle = index / 120 * tau;
+      const major = index % 10 === 0;
+      const inner = radius * (major ? 1.015 : 1.025);
+      const outer = radius * (major ? 1.057 : 1.041);
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner);
+      ctx.lineTo(Math.cos(angle) * outer, Math.sin(angle) * outer);
+      ctx.strokeStyle = major ? 'rgba(100,221,247,0.55)' : 'rgba(58,146,183,0.24)';
+      ctx.lineWidth = major ? 1.3 : 0.7;
       ctx.stroke();
     }
+
+    // Broad broken bands echo a mechanical iris without using heavy assets.
+    for (let index = 0; index < 8; index++) {
+      const start = index / 8 * tau + 0.045 + phase * 0.045;
+      const end = start + tau / 8 - 0.13;
+      arc(radius * 0.94, start, end, 'rgba(13,63,100,0.8)', radius * 0.036);
+      if (index % 3 !== 1) {
+        arc(radius * 0.94, start + 0.015, end - 0.015, 'rgba(20,154,241,' + (0.58 + level * 0.22) + ')', radius * 0.019, 6);
+        arc(radius * 0.958, start + 0.015, end - 0.015, 'rgba(82,222,255,0.55)', 0.9);
+      }
+      const innerStart = index / 8 * tau - phase * 0.065;
+      arc(radius * 0.848, innerStart, innerStart + 0.58, 'rgba(22,125,196,0.28)', radius * 0.025);
+    }
+    arc(radius * 0.89, 0, tau, 'rgba(51,139,195,0.22)', 0.8);
+    arc(radius * 0.887, phase * 0.22 - 0.9, phase * 0.22 + 0.48, 'rgba(55,199,255,0.85)', 1.5, 7);
+    arc(radius * 0.887, phase * 0.22 + Math.PI - 0.9, phase * 0.22 + Math.PI + 0.48, 'rgba(17,131,245,0.65)', 1.5, 5);
+
+    const rings = [0.785, 0.756, 0.706, 0.655, 0.61];
+    for (let index = 0; index < rings.length; index++) {
+      const r = radius * rings[index];
+      const color = index % 2 ? 'rgba(66,202,242,0.38)' : 'rgba(31,135,211,0.4)';
+      arc(r, 0, tau, color, index === 2 ? 1.35 : 0.65);
+      if (index % 2 === 0) {
+        const rotation = phase * (index % 4 ? -0.17 : 0.14) + index * 0.9;
+        arc(r, rotation, rotation + 0.75, 'rgba(104,239,255,' + (0.6 + level * 0.2) + ')', 1.35, 5);
+        arc(r, rotation + Math.PI, rotation + Math.PI + 0.75, 'rgba(20,161,253,0.72)', 1.2, 5);
+      }
+    }
+    ctx.setLineDash([1, 6]);
+    arc(radius * 0.813, -phase * 0.08, tau - phase * 0.08, 'rgba(74,202,231,0.45)', 1.2);
+    arc(radius * 0.574, phase * 0.1, tau + phase * 0.1, 'rgba(67,176,213,0.32)', 0.8);
+    ctx.setLineDash([]);
+
+    // Four projected orbital planes, with brighter near-side arcs.
+    for (let ring = 0; ring < 4; ring++) {
+      const orbit = [];
+      const tilt = 0.35 + ring * 0.68;
+      const rotation = phase * (ring % 2 ? -0.13 : 0.15) + ring * 0.74;
+      for (let step = 0; step <= 72; step++) {
+        const angle = step / 72 * tau;
+        orbit.push(projected([Math.cos(angle), Math.sin(angle) * Math.cos(tilt), Math.sin(angle) * Math.sin(tilt)], radius * (0.65 + level * 0.025), rotation));
+      }
+      ctx.beginPath();
+      orbit.forEach(([x, y], step) => {
+        if (step === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.strokeStyle = 'rgba(42,182,236,0.25)';
+      ctx.lineWidth = 0.85;
+      ctx.stroke();
+      ctx.beginPath();
+      let connected = false;
+      for (const [x, y, depth] of orbit) {
+        if (depth < 0) {
+          if (connected) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+          connected = true;
+        } else connected = false;
+      }
+      ctx.strokeStyle = 'rgba(83,224,255,' + (0.58 + level * 0.25) + ')';
+      ctx.lineWidth = 1.1;
+      ctx.shadowColor = '#13c6ff';
+      ctx.shadowBlur = 4 + level * 5;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
     const points = particles.map((point, index) => {
-      const motion = 1 + Math.sin(phase * 1.4 + index * 0.16) * (0.018 + level * 0.07);
-      return projected(point, radius * motion, phase * 0.35);
+      const motion = 1 + Math.sin(phase * 0.9 + index * 0.28) * (0.015 + level * 0.045);
+      return projected(point, radius * 0.56 * motion, phase * 0.12);
     }).sort((a, b) => b[2] - a[2]);
     for (const [x, y, depth] of points) {
       const front = (1 - depth) / 2;
       ctx.beginPath();
-      ctx.arc(x, y, 0.7 + front * 1.15 + level * 0.3, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(' + Math.round(55 + front * 55) + ',' + Math.round(155 + front * 85) + ',245,' + (0.16 + front * 0.68) + ')';
+      ctx.arc(x, y, 0.45 + front * 0.8 + level * 0.25, 0, tau);
+      ctx.fillStyle = 'rgba(92,216,255,' + (0.1 + front * 0.62) + ')';
       ctx.fill();
     }
+
+    // Cardinal light nodes and short registration brackets.
+    for (let index = 0; index < 4; index++) {
+      const angle = index / 4 * tau;
+      const x = Math.cos(angle) * radius * 0.72;
+      const y = Math.sin(angle) * radius * 0.72;
+      ctx.beginPath(); ctx.arc(x, y, 1.5 + level, 0, tau);
+      ctx.fillStyle = '#93f3ff';
+      ctx.shadowColor = '#1ebfff'; ctx.shadowBlur = 9 + level * 6; ctx.fill(); ctx.shadowBlur = 0;
+      ctx.beginPath();
+      ctx.moveTo(x - Math.cos(angle) * 8, y - Math.sin(angle) * 8);
+      ctx.lineTo(x + Math.cos(angle) * 8, y + Math.sin(angle) * 8);
+      ctx.strokeStyle = 'rgba(92,224,255,0.75)'; ctx.lineWidth = 1; ctx.stroke();
+    }
+    for (let side = -1; side <= 1; side += 2) {
+      for (let index = 0; index < 6; index++) {
+        const angle = (side === 1 ? 0 : Math.PI) + (index - 2.5) * 0.027;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(angle) * radius * 0.97, Math.sin(angle) * radius * 0.97);
+        ctx.lineTo(Math.cos(angle) * radius * 1.005, Math.sin(angle) * radius * 1.005);
+        ctx.strokeStyle = 'rgba(231,182,70,0.64)'; ctx.lineWidth = 1.6; ctx.stroke();
+      }
+    }
+
+    // Faceted luminous diamond: a distinctive center, not a particle sphere.
+    const pulse = 1 + level * 0.12;
+    const diamondHeight = radius * 0.195 * pulse;
+    const diamondWidth = radius * 0.092 * pulse;
+    const coreGlow = ctx.createRadialGradient(0, 0, 0, 0, 0, radius * 0.37);
+    coreGlow.addColorStop(0, 'rgba(60,228,255,' + (0.28 + level * 0.3) + ')');
+    coreGlow.addColorStop(0.4, 'rgba(5,158,238,0.14)');
+    coreGlow.addColorStop(1, 'rgba(0,127,230,0)');
+    ctx.fillStyle = coreGlow; ctx.fillRect(-radius * 0.4, -radius * 0.4, radius * 0.8, radius * 0.8);
+    ctx.beginPath(); ctx.moveTo(0, -radius * 0.8); ctx.lineTo(0, radius * 0.8);
+    ctx.strokeStyle = 'rgba(77,218,255,' + (0.12 + level * 0.15) + ')'; ctx.lineWidth = 0.8; ctx.stroke();
+    const facets = [
+      [[0, -diamondHeight], [diamondWidth, 0], [0, 0], 'rgba(126,245,255,0.8)'],
+      [[0, -diamondHeight], [-diamondWidth, 0], [0, 0], 'rgba(16,173,237,0.65)'],
+      [[0, diamondHeight], [diamondWidth, 0], [0, 0], 'rgba(30,190,249,0.7)'],
+      [[0, diamondHeight], [-diamondWidth, 0], [0, 0], 'rgba(5,112,198,0.55)'],
+    ];
+    for (const [a, b, c, color] of facets) {
+      ctx.beginPath(); ctx.moveTo(...a); ctx.lineTo(...b); ctx.lineTo(...c); ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+    }
     ctx.beginPath();
-    ctx.arc(0, 0, radius * 0.48, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(80,212,249,0.08)';
-    ctx.stroke();
+    ctx.moveTo(0, -diamondHeight); ctx.lineTo(diamondWidth, 0); ctx.lineTo(0, diamondHeight); ctx.lineTo(-diamondWidth, 0); ctx.closePath();
+    ctx.moveTo(0, -diamondHeight); ctx.lineTo(0, diamondHeight);
+    ctx.moveTo(-diamondWidth, 0); ctx.lineTo(diamondWidth, 0);
+    ctx.strokeStyle = 'rgba(168,255,255,0.95)'; ctx.lineWidth = 1;
+    ctx.shadowBlur = 12 + level * 8; ctx.shadowColor = '#13c9ff'; ctx.stroke(); ctx.shadowBlur = 0;
+    arc(radius * 0.285, 0, tau, 'rgba(64,188,231,0.36)', 0.65);
+    arc(radius * 0.31, -phase * 0.2, -phase * 0.2 + 1.1, 'rgba(111,239,255,0.65)', 1);
     ctx.restore();
   }
 
@@ -792,29 +1015,39 @@
     }
   }
 
+  function scheduleAnimation() {
+    if (!destroyed && !document.hidden && frameId === null) frameId = requestAnimationFrame(animate);
+  }
+
   function animate(time) {
-    frameId = requestAnimationFrame(animate);
-    const interval = reducedMotion.matches ? 120 : 1000 / 30;
-    if (time - lastFrame < interval) return;
-    const elapsed = Math.min(time - lastFrame, 100);
-    lastFrame = time;
-    if (analyser && audioPlaying) {
-      analyser.getFloatTimeDomainData(analyserValues);
-      let sum = 0;
-      for (const value of analyserValues) sum += value * value;
-      playbackLevel = Math.sqrt(sum / analyserValues.length);
-    } else analyserValues.fill(0);
-    const level = Math.min(1, Math.max(microphoneLevel, playbackLevel) * 7);
-    phase += elapsed * (reducedMotion.matches ? 0.00005 : 0.00034);
-    drawCore(level);
-    drawWave();
+    frameId = null;
+    if (destroyed || document.hidden) return;
+    const interval = reducedMotion.matches ? 125 : 1000 / 30;
+    if ((reducedMotion.matches && !mic && !audioPlaying) || time - lastFrame >= interval) {
+      const elapsed = Math.min(time - lastFrame, 100);
+      lastFrame = time - (time - lastFrame) % interval;
+      if (analyser && audioPlaying) {
+        analyser.getFloatTimeDomainData(analyserValues);
+        let sum = 0;
+        for (const value of analyserValues) sum += value * value;
+        playbackLevel = Math.sqrt(sum / analyserValues.length);
+      } else analyserValues.fill(0);
+      const level = Math.min(1, Math.max(microphoneLevel, playbackLevel) * 7);
+      if (!reducedMotion.matches) phase += elapsed * (serverState === 'thinking' ? 0.00038 : 0.00028);
+      drawCore(level);
+      drawWave();
+    }
+    // Reduced motion freezes all ornamental rotation and sleeps completely
+    // when idle; live microphone/playback levels still update at eight FPS.
+    if (!reducedMotion.matches || mic || audioPlaying) scheduleAnimation();
   }
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { cancelAnimationFrame(frameId); frameId = null; }
-    else if (!frameId) { lastFrame = 0; frameId = requestAnimationFrame(animate); }
+    else { lastFrame = 0; scheduleAnimation(); }
   });
+  reducedMotion.addEventListener('change', () => { lastFrame = 0; scheduleAnimation(); });
   resizeCanvases();
-  frameId = requestAnimationFrame(animate);
+  scheduleAnimation();
 
   async function initialize() {
     const results = await Promise.allSettled([api('/api/status'), api('/api/history')]);

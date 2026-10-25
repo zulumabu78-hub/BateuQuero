@@ -26,6 +26,7 @@ APP_NAMES = {
     "notepad": "Bloco de Notas",
     "spotify": "Spotify",
     "browser": "navegador",
+    "files": "Explorador de Arquivos",
 }
 APP_ALIASES = {
     "calculadora": "calculator",
@@ -35,6 +36,9 @@ APP_ALIASES = {
     "spotify": "spotify",
     "navegador": "browser",
     "browser": "browser",
+    "arquivos": "files",
+    "explorador": "files",
+    "explorador de arquivos": "files",
 }
 URL_HOSTS = frozenset({
     "google.com", "www.google.com", "open.spotify.com", "youtube.com",
@@ -130,6 +134,9 @@ class ToolRegistry:
                 raise ValueError("Aplicativo não permitido.")
             if app in {"calculator", "notepad"}:
                 executable = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / {"calculator": "calc.exe", "notepad": "notepad.exe"}[app]
+                subprocess.Popen([str(executable)], shell=False, close_fds=True)
+            elif app == "files":
+                executable = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "explorer.exe"
                 subprocess.Popen([str(executable)], shell=False, close_fds=True)
             elif app == "spotify":
                 try:
